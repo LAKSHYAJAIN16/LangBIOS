@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docs - LangBIOS</title>
+<meta name="description" content="How to install, build, and use LangBIOS.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="nav">
+    <div class="brand"><a href="index.html" style="color:inherit;text-decoration:none;">Lang<span style="color:var(--accent)">BIOS</span></a></div>
+    <nav class="nav-links">
+      <a href="usage.html">Docs</a>
+      <a href="https://github.com/LAKSHYAJAIN16/LangBIOS">GitHub</a>
+      <a href="https://github.com/LAKSHYAJAIN16/LangBIOS/issues/new">Report a bug</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <h1>Documentation</h1>
+  <p class="dim">Everything you need to install, build, and use LangBIOS against real firmware.</p>
+
+  <h2 id="install">1. Install</h2>
+  <pre><code>git clone https://github.com/LAKSHYAJAIN16/LangBIOS.git
+cd LangBIOS</code></pre>
+  <p>The native layer that actually talks to firmware needs a separate build step, below. LangBIOS won't do anything useful until that's built.</p>
+
+  <h2 id="build">2. Build the native layer</h2>
+  <p>This compiles <code>native/</code> (C++) into a shared library Python loads via <code>ctypes</code>, plus a standalone native CLI.</p>
+
+  <h3>Windows</h3>
+  <p>Requires a C++20 compiler (clang++/LLVM or MSVC) with the Windows SDK.</p>
+  <pre><code>powershell -ExecutionPolicy Bypass -File native/build.ps1</code></pre>
+  <p>Produces <code>native/build/langbios_native.dll</code> and <code>native/build/langbios_cli.exe</code>.</p>
+  <div class="callout">
+    The DLL is cross-compiled to match your <strong>system Python's architecture</strong>: ctypes requires an exact match. If your Python isn't x86_64, edit the <code>--target</code> flag near the top of <code>build.ps1</code>. The standalone CLI always targets your host's real architecture.
+  </div>
+
+  <h3>Linux</h3>
+  <p>Requires g++ or clang++ with C++20 support.</p>
+  <pre><code>./native/build.sh</code></pre>
+  <p>Produces <code>native/build/langbios_native.so</code> and <code>native/build/langbios_cli</code>.</p>
+  <div class="callout warn">
+    <strong>Honesty note:</strong> the Linux backend was written against the documented kernel ABIs (<code>efivarfs</code>, <code>/sys/class/firmware-attributes</code>, <code>/sys/class/tpm</code>) but developed on Windows, with no Linux hardware in that environment to verify it against real firmware yet. The Windows backend has been verified end-to-end against real hardware. Test the Linux write path carefully, starting with read-only commands.
+  </div>
+
+  <h2 id="run">3. Run it</h2>
+  <pre><code># One-shot
+python -m langbios.cli "list settings"
+python -m langbios.cli "enable secure boot"
+
+# Interactive REPL
+python -m langbios.cli</code></pre>
+  <p>Inside the REPL, type <code>exit</code> or <code>quit</code> to leave. Use <code>--no-llm</code> to disable the local-LLM fallback and only use the fast rule-based parser.</p>
+
+  <p>You can also use the standalone native binary directly, without Python:</p>
+  <pre><code># Windows
+native\build\langbios_cli.exe "list settings"
+
+# Linux
+./native/build/langbios_cli "list settings"</code></pre>
+
+  <h2 id="examples">4. Example commands</h2>
+  <pre><code>list settings
+what's my secure boot
+enable secure boot
+disable virtualization
+what's my fan profile
+set fan profile to silent
+set power profile to performance
+what's my boot order
+set boot order to Windows Boot Manager, USB Storage, Internal Storage
+reset to factory defaults</code></pre>
+  <p class="dim">Boot order values must match your machine's <em>actual</em> boot entry names (run <code>what's my boot order</code> first to see them). Generic categories like "ssd"/"hdd" won't match anything real.</p>
+
+  <h2 id="capabilities">5. What's actually possible on your hardware</h2>
+  <table>
+    <thead><tr><th>Setting</th><th>Mechanism</th><th>Writable?</th><th>Works on</th></tr></thead>
+    <tbody>
+      <tr><td><code>boot_order</code></td><td>Standard UEFI variables</td><td>Yes</td><td>Any UEFI machine (elevated)</td></tr>
+      <tr><td><code>secure_boot</code></td><td>Standard UEFI variable</td><td>No, firmware-enforced</td><td>Any UEFI machine (elevated, read-only)</td></tr>
+      <tr><td><code>tpm</code></td><td>WMI / sysfs</td><td>No, not OS-writable anywhere</td><td>Any machine with a TPM (elevated)</td></tr>
+      <tr><td><code>virtualization</code>, <code>fan_profile</code>, <code>power_profile</code>, <code>cpu_turbo</code>, <code>fast_boot</code>, <code>xmp</code></td><td>Vendor WMI (Windows) / <code>firmware-attributes</code> (Linux)</td><td>Yes, if the vendor stack is present</td><td>Dell / HP / Lenovo only</td></tr>
+    </tbody>
+  </table>
+  <p>On anything else, LangBIOS reports "no vendor BIOS management interface available" rather than pretending a setting changed.</p>
+
+  <h2 id="elevation">6. Elevation / permissions</h2>
+  <ul>
+    <li><strong>Windows:</strong> needs <code>SeSystemEnvironmentPrivilege</code>, only ever granted to Administrators. Run from an elevated terminal, or enable <code>sudo</code> under Settings → Privacy &amp; Security → For developers.</li>
+    <li><strong>Linux:</strong> needs root / <code>CAP_SYS_ADMIN</code>. Run with <code>sudo</code>.</li>
+  </ul>
+  <p>Non-elevated runs still work and explain exactly why an operation needs elevation, instead of failing silently.</p>
+
+  <h2 id="llm">7. Local LLM fallback (optional)</h2>
+  <p>For phrasing the rule parser doesn't recognize:</p>
+  <pre><code>ollama pull llama3.2
+ollama serve</code></pre>
+  <p>Configure via environment variables if needed:</p>
+  <pre><code>LANGBIOS_OLLAMA_URL=http://localhost:11434
+LANGBIOS_OLLAMA_MODEL=llama3.2
+LANGBIOS_OLLAMA_TIMEOUT=10</code></pre>
+
+  <h2 id="safety">8. Safety notes</h2>
+  <ul>
+    <li><strong>Boot order writes refuse partial reorders.</strong> Every current entry must be listed, in order, so a typo can't silently drop a boot device.</li>
+    <li><strong>Secure Boot and TPM are always read-only</strong> from every code path, by firmware design.</li>
+    <li><strong>Vendor attribute writes</strong> may only take effect after a reboot / pending-changes commit, and can fail if a BIOS admin password is set; both are reported explicitly.</li>
+  </ul>
+
+  <h2 id="troubleshooting">9. Troubleshooting</h2>
+  <p><strong>"Native library not found":</strong> you haven't run the build script yet, or built it for the wrong architecture. See step 2.</p>
+  <p><strong>"This process's token does not hold SeSystemEnvironmentPrivilege" / "requires running as root":</strong> expected outside an elevated/root shell. Re-run elevated.</p>
+  <p><strong>"No vendor BIOS management interface available":</strong> your machine isn't Dell/HP/Lenovo (or the Linux driver isn't loaded). This is a real hardware limitation, not a bug.</p>
+  <p>Still stuck? <a href="https://github.com/LAKSHYAJAIN16/LangBIOS/issues/new">open an issue</a>.</p>
+</main>
+
+<footer class="site">
+  <p>
+    <a href="https://github.com/LAKSHYAJAIN16/LangBIOS">GitHub</a> ·
+    <a href="index.html">Home</a> ·
+    <a href="https://github.com/LAKSHYAJAIN16/LangBIOS/issues/new">Report a bug</a>
+  </p>
+</footer>
+
+</body>
+</html>
