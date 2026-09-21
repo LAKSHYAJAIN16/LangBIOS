@@ -152,6 +152,12 @@ std::vector<WmiRow> WmiSession::Query(const std::wstring& wql) {
             }
             SafeArrayDestroy(names);
         }
+        VARIANT pathVal;
+        VariantInit(&pathVal);
+        if (SUCCEEDED(obj->Get(L"__PATH", 0, &pathVal, nullptr, nullptr))) {
+            row[L"__PATH"] = VariantToWString(pathVal);
+        }
+        VariantClear(&pathVal);
         obj->Release();
         rows.push_back(std::move(row));
     }
@@ -163,10 +169,17 @@ WmiRow WmiSession::ExecMethod(
     const std::wstring& className,
     const std::wstring& methodName,
     const std::map<std::wstring, std::wstring>& inParams) {
+    return ExecMethodOnPath(className, methodName, inParams);
+}
+
+WmiRow WmiSession::ExecMethodOnPath(
+    const std::wstring& objectPath,
+    const std::wstring& methodName,
+    const std::map<std::wstring, std::wstring>& inParams) {
     IWbemClassObject* classObj = nullptr;
-    HRESULT hr = services_->GetObject(_bstr_t(className.c_str()), 0, nullptr, &classObj, nullptr);
+    HRESULT hr = services_->GetObject(_bstr_t(objectPath.c_str()), 0, nullptr, &classObj, nullptr);
     if (FAILED(hr) || !classObj) {
-        throw std::runtime_error("Could not get WMI class definition for method call");
+        throw std::runtime_error("Could not get WMI object for method call");
     }
 
     IWbemClassObject* inSignature = nullptr;
@@ -188,7 +201,7 @@ WmiRow WmiSession::ExecMethod(
 
     IWbemClassObject* outParams = nullptr;
     HRESULT hrExec = services_->ExecMethod(
-        _bstr_t(className.c_str()), _bstr_t(methodName.c_str()), 0, nullptr,
+        _bstr_t(objectPath.c_str()), _bstr_t(methodName.c_str()), 0, nullptr,
         inParamsInstance, &outParams, nullptr);
 
     if (inParamsInstance) inParamsInstance->Release();

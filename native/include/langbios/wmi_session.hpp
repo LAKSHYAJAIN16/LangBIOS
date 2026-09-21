@@ -29,10 +29,20 @@ public:
     WmiSession(const WmiSession&) = delete;
     WmiSession& operator=(const WmiSession&) = delete;
 
+    // Each row also carries its own object path under the "__PATH" key,
+    // needed to invoke instance/singleton methods correctly.
     std::vector<WmiRow> Query(const std::wstring& wql);
 
-    // Executes a static/instance method with string in-params, returns the
-    // out-params (including "ReturnValue" for the method's own status code).
+    // Executes a method against a specific object path (an instance, or a
+    // singleton "*_Service" class's one instance obtained via Query's
+    // "__PATH"). Returns the out-params (including "ReturnValue").
+    WmiRow ExecMethodOnPath(
+        const std::wstring& objectPath,
+        const std::wstring& methodName,
+        const std::map<std::wstring, std::wstring>& inParams);
+
+    // Convenience for classes that are safe to address by class name
+    // directly (static methods with no relevant instance state).
     WmiRow ExecMethod(
         const std::wstring& className,
         const std::wstring& methodName,
