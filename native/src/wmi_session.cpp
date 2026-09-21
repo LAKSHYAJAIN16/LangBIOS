@@ -95,9 +95,14 @@ WmiSession::WmiSession(const std::wstring& ns) {
         locator_->Release();
         locator_ = nullptr;
         if (comInitializedHere_) CoUninitialize();
+        if (hrConn == WBEM_E_ACCESS_DENIED || hrConn == E_ACCESSDENIED) {
+            throw std::runtime_error(
+                "Access denied connecting to WMI namespace " + NarrowForThrow(ns) +
+                " - this namespace exists but requires an elevated (Administrator) "
+                "process to query.");
+        }
         throw std::runtime_error(
-            "Could not connect to WMI namespace " + NarrowForThrow(ns) +
-            " (this vendor's BIOS management stack is likely not present on this machine)");
+            "WMI namespace " + NarrowForThrow(ns) + " is not available on this machine");
     }
 
     HRESULT hrProxy = CoSetProxyBlanket(
@@ -124,7 +129,7 @@ std::vector<WmiRow> WmiSession::Query(const std::wstring& wql) {
     IEnumWbemClassObject* enumerator = nullptr;
     HRESULT hr = services_->ExecQuery(
         _bstr_t(L"WQL"), _bstr_t(wql.c_str()),
-        WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATE,
+        WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
         nullptr, &enumerator);
     if (FAILED(hr) || !enumerator) {
         throw std::runtime_error("WMI query failed");

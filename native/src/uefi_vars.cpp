@@ -9,6 +9,20 @@
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "kernel32.lib")
 
+// These SDK constants are gated behind an NTDDI_VERSION check that isn't
+// always satisfied depending on how WINVER/_WIN32_WINNT resolve for a
+// given toolchain; the values themselves are stable and documented, so
+// define them defensively if the headers didn't.
+#ifndef VARIABLE_ATTRIBUTE_NON_VOLATILE
+#define VARIABLE_ATTRIBUTE_NON_VOLATILE 0x00000001
+#endif
+#ifndef VARIABLE_ATTRIBUTE_BOOTSERVICE_ACCESS
+#define VARIABLE_ATTRIBUTE_BOOTSERVICE_ACCESS 0x00000002
+#endif
+#ifndef VARIABLE_ATTRIBUTE_RUNTIME_ACCESS
+#define VARIABLE_ATTRIBUTE_RUNTIME_ACCESS 0x00000004
+#endif
+
 namespace langbios {
 
 namespace {

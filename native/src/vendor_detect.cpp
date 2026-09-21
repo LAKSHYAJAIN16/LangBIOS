@@ -5,6 +5,11 @@
 
 namespace langbios {
 
+// Defined in vendor_dell.cpp / vendor_hp.cpp / vendor_lenovo.cpp.
+std::unique_ptr<IVendorBiosBackend> CreateDellBackend();
+std::unique_ptr<IVendorBiosBackend> CreateHpBackend();
+std::unique_ptr<IVendorBiosBackend> CreateLenovoBackend();
+
 namespace {
 
 std::wstring ToLower(std::wstring s) {
@@ -33,11 +38,6 @@ public:
 private:
     std::wstring manufacturer_;
 };
-
-// Declared in vendor_dell.cpp / vendor_hp.cpp / vendor_lenovo.cpp.
-std::unique_ptr<IVendorBiosBackend> CreateDellBackend();
-std::unique_ptr<IVendorBiosBackend> CreateHpBackend();
-std::unique_ptr<IVendorBiosBackend> CreateLenovoBackend();
 
 } // namespace
 
