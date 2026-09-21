@@ -1,8 +1,10 @@
 #include "langbios/uefi_vars.hpp"
+#include "win_strings.hpp"
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <algorithm>
-#include <cwctype>
+#include <cctype>
+#include <cstdio>
 #include <sstream>
 #include <vector>
 
@@ -29,32 +31,32 @@ namespace {
 
 const wchar_t* kGlobalGuid = L"{8BE4DF61-93CA-11D2-AA0D-00E098032B8C}";
 
-std::wstring LastErrorMessage(DWORD err) {
+std::string LastErrorMessage(DWORD err) {
     LPWSTR buf = nullptr;
     FormatMessageW(
         FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
         nullptr, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
         reinterpret_cast<LPWSTR>(&buf), 0, nullptr);
-    std::wstring msg = buf ? buf : L"unknown error";
+    std::string msg = buf ? WideToUtf8(buf) : "unknown error";
     if (buf) LocalFree(buf);
-    while (!msg.empty() && (msg.back() == L'\n' || msg.back() == L'\r')) msg.pop_back();
+    while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r')) msg.pop_back();
     return msg;
 }
 
-Result PrivilegeAwareFailure(const std::wstring& what) {
+Result PrivilegeAwareFailure(const std::string& what) {
     DWORD err = GetLastError();
     if (err == ERROR_PRIVILEGE_NOT_HELD) {
         return Result::Failure(
-            what + L": privilege not held. This requires an elevated "
-            L"(Administrator) process - run this tool from an elevated "
-            L"terminal (e.g. `sudo` if enabled in Developer Settings, or "
-            L"'Run as administrator').");
+            what + ": privilege not held. This requires an elevated "
+            "(Administrator) process - run this tool from an elevated "
+            "terminal (e.g. `sudo` if enabled in Developer Settings, or "
+            "'Run as administrator').");
     }
-    return Result::Failure(what + L": " + LastErrorMessage(err) + L" (code " + std::to_wstring(err) + L")");
+    return Result::Failure(what + ": " + LastErrorMessage(err) + " (code " + std::to_string(err) + ")");
 }
 
-std::wstring ToLower(std::wstring s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](wchar_t c) { return std::towlower(c); });
+std::string ToLower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
     return s;
 }
 
@@ -63,13 +65,13 @@ std::wstring ToLower(std::wstring s) {
 Result EnableFirmwareVariablePrivilege() {
     HANDLE token = nullptr;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)) {
-        return PrivilegeAwareFailure(L"OpenProcessToken failed");
+        return PrivilegeAwareFailure("OpenProcessToken failed");
     }
 
     LUID luid;
     if (!LookupPrivilegeValueW(nullptr, SE_SYSTEM_ENVIRONMENT_NAME, &luid)) {
         CloseHandle(token);
-        return PrivilegeAwareFailure(L"LookupPrivilegeValue(SeSystemEnvironmentPrivilege) failed");
+        return PrivilegeAwareFailure("LookupPrivilegeValue(SeSystemEnvironmentPrivilege) failed");
     }
 
     TOKEN_PRIVILEGES tp{};
@@ -83,16 +85,16 @@ Result EnableFirmwareVariablePrivilege() {
 
     if (!adjusted) {
         SetLastError(err);
-        return PrivilegeAwareFailure(L"AdjustTokenPrivileges failed");
+        return PrivilegeAwareFailure("AdjustTokenPrivileges failed");
     }
     if (err == ERROR_NOT_ALL_ASSIGNED) {
         return Result::Failure(
-            L"This process's token does not hold SeSystemEnvironmentPrivilege. "
-            L"Real firmware variable access requires running elevated as "
-            L"Administrator - non-admin accounts are never granted this "
-            L"privilege, by design.");
+            "This process's token does not hold SeSystemEnvironmentPrivilege. "
+            "Real firmware variable access requires running elevated as "
+            "Administrator - non-admin accounts are never granted this "
+            "privilege, by design.");
     }
-    return Result::Success(L"Firmware variable privilege enabled.");
+    return Result::Success("Firmware variable privilege enabled.");
 }
 
 Result ListBootEntries(std::vector<BootEntry>& out) {
@@ -102,7 +104,7 @@ Result ListBootEntries(std::vector<BootEntry>& out) {
     BYTE orderBuf[2048];
     DWORD orderLen = GetFirmwareEnvironmentVariableW(L"BootOrder", kGlobalGuid, orderBuf, sizeof(orderBuf));
     if (orderLen == 0) {
-        return PrivilegeAwareFailure(L"Reading BootOrder failed");
+        return PrivilegeAwareFailure("Reading BootOrder failed");
     }
 
     size_t count = orderLen / sizeof(uint16_t);
@@ -115,17 +117,17 @@ Result ListBootEntries(std::vector<BootEntry>& out) {
 
         BYTE optBuf[4096];
         DWORD optLen = GetFirmwareEnvironmentVariableW(name, kGlobalGuid, optBuf, sizeof(optBuf));
-        std::wstring desc = L"(unreadable)";
+        std::string desc = "(unreadable)";
         if (optLen >= 6) {
             // EFI_LOAD_OPTION: UINT32 Attributes; UINT16 FilePathListLength; CHAR16 Description[];
             const wchar_t* descStart = reinterpret_cast<const wchar_t*>(optBuf + 6);
             size_t maxChars = (optLen - 6) / sizeof(wchar_t);
             std::wstring raw(descStart, wcsnlen_s(descStart, maxChars));
-            if (!raw.empty()) desc = raw;
+            if (!raw.empty()) desc = WideToUtf8(raw);
         }
         out.push_back(BootEntry{ids[i], desc});
     }
-    return Result::Success(L"ok");
+    return Result::Success("ok");
 }
 
 Result GetBootOrder() {
@@ -133,14 +135,14 @@ Result GetBootOrder() {
     Result r = ListBootEntries(entries);
     if (!r.ok) return r;
 
-    std::wstringstream ss;
+    std::stringstream ss;
     for (size_t i = 0; i < entries.size(); ++i) {
-        if (i) ss << L" | ";
-        wchar_t idBuf[8];
-        swprintf_s(idBuf, L"%04X", entries[i].id);
-        ss << i << L":" << idBuf << L" " << entries[i].description;
+        if (i) ss << " | ";
+        char idBuf[8];
+        snprintf(idBuf, sizeof(idBuf), "%04X", entries[i].id);
+        ss << i << ":" << idBuf << " " << entries[i].description;
     }
-    return Result::Success(L"Real boot order (from firmware): " + ss.str(), ss.str());
+    return Result::Success("Real boot order (from firmware): " + ss.str(), ss.str());
 }
 
 Result SetBootOrderByIds(const std::vector<uint16_t>& ids) {
@@ -148,7 +150,7 @@ Result SetBootOrderByIds(const std::vector<uint16_t>& ids) {
     if (!priv.ok) return priv;
 
     if (ids.empty()) {
-        return Result::Failure(L"Refusing to write an empty BootOrder.");
+        return Result::Failure("Refusing to write an empty BootOrder.");
     }
 
     DWORD attrs = VARIABLE_ATTRIBUTE_NON_VOLATILE | VARIABLE_ATTRIBUTE_BOOTSERVICE_ACCESS |
@@ -159,28 +161,28 @@ Result SetBootOrderByIds(const std::vector<uint16_t>& ids) {
         static_cast<DWORD>(ids.size() * sizeof(uint16_t)),
         attrs);
     if (!wrote) {
-        return PrivilegeAwareFailure(L"Writing BootOrder failed");
+        return PrivilegeAwareFailure("Writing BootOrder failed");
     }
-    return Result::Success(L"Boot order updated in real firmware (" + std::to_wstring(ids.size()) + L" entries).");
+    return Result::Success("Boot order updated in real firmware (" + std::to_string(ids.size()) + " entries).");
 }
 
-Result SetBootOrderByDescriptions(const std::vector<std::wstring>& order) {
+Result SetBootOrderByDescriptions(const std::vector<std::string>& order) {
     std::vector<BootEntry> entries;
     Result r = ListBootEntries(entries);
     if (!r.ok) return r;
 
     std::vector<uint16_t> newIds;
     for (const auto& want : order) {
-        std::wstring wantLower = ToLower(want);
+        std::string wantLower = ToLower(want);
         auto it = std::find_if(entries.begin(), entries.end(), [&](const BootEntry& e) {
-            return ToLower(e.description).find(wantLower) != std::wstring::npos;
+            return ToLower(e.description).find(wantLower) != std::string::npos;
         });
         if (it == entries.end()) {
             return Result::Failure(
-                L"No current boot entry matches '" + want + L"'. Real boot entry "
-                L"names on this machine don't match generic categories like "
-                L"'ssd'/'hdd' - use `list settings` to see the actual entry names "
-                L"first (e.g. 'Windows Boot Manager').");
+                "No current boot entry matches '" + want + "'. Real boot entry "
+                "names on this machine don't match generic categories like "
+                "'ssd'/'hdd' - use `list settings` to see the actual entry names "
+                "first (e.g. 'Windows Boot Manager').");
         }
         newIds.push_back(it->id);
     }
@@ -189,9 +191,9 @@ Result SetBootOrderByDescriptions(const std::vector<std::wstring>& order) {
     // entries so we never silently drop a boot option.
     if (newIds.size() != entries.size()) {
         return Result::Failure(
-            L"Boot order change must list every current boot entry, in the "
-            L"desired order - refusing a partial reorder to avoid dropping "
-            L"an entry from the real BootOrder variable.");
+            "Boot order change must list every current boot entry, in the "
+            "desired order - refusing a partial reorder to avoid dropping "
+            "an entry from the real BootOrder variable.");
     }
 
     return SetBootOrderByIds(newIds);
@@ -204,12 +206,12 @@ Result GetSecureBootState() {
     BYTE val = 0;
     DWORD len = GetFirmwareEnvironmentVariableW(L"SecureBoot", kGlobalGuid, &val, sizeof(val));
     if (len == 0) {
-        return PrivilegeAwareFailure(L"Reading SecureBoot failed (some firmware/CSM-mode systems don't expose it)");
+        return PrivilegeAwareFailure("Reading SecureBoot failed (some firmware/CSM-mode systems don't expose it)");
     }
-    std::wstring state = val ? L"enabled" : L"disabled";
+    std::string state = val ? "enabled" : "disabled";
     return Result::Success(
-        L"secure_boot = " + state + L" (read-only from software by firmware design; "
-        L"toggle it from the physical UEFI setup menu)",
+        "secure_boot = " + state + " (read-only from software by firmware design; "
+        "toggle it from the physical UEFI setup menu)",
         state);
 }
 

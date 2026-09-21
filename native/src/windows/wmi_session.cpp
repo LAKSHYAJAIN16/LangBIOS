@@ -1,4 +1,4 @@
-#include "langbios/wmi_session.hpp"
+#include "wmi_session.hpp"
 #include <Wbemidl.h>
 #include <stdexcept>
 #include <atomic>

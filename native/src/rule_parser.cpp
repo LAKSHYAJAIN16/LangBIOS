@@ -1,6 +1,6 @@
 #include "langbios/rule_parser.hpp"
 #include <algorithm>
-#include <cwctype>
+#include <cctype>
 #include <map>
 #include <regex>
 #include <vector>
@@ -9,79 +9,80 @@ namespace langbios {
 
 namespace {
 
-std::wstring ToLower(std::wstring s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](wchar_t c) { return std::towlower(c); });
+std::string ToLower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
     return s;
 }
 
-const std::wregex kOnWords(LR"(\b(?:turn on|enable|enabled|activate|on)\b)");
-const std::wregex kOffWords(LR"(\b(?:turn off|disable|disabled|deactivate|off)\b)");
-const std::wregex kQueryWords(LR"(\b(?:what's|what is|check|status of|is)\b)");
-const std::wregex kListWords(LR"(\b(?:list|show|dump)\b.*\bsettings?\b)");
-const std::wregex kResetWords(LR"(\breset\b.*\b(?:default|factory)\w*)");
-const std::wregex kBootOrderValue(LR"((?:to|:)\s*([a-z0-9, ]+)$)");
+const std::regex kOnWords(R"(\b(?:turn on|enable|enabled|activate|on)\b)");
+const std::regex kOffWords(R"(\b(?:turn off|disable|disabled|deactivate|off)\b)");
+const std::regex kQueryWords(R"(\b(?:what's|what is|check|status of|is)\b)");
+const std::regex kListWords(R"(\b(?:list|show|dump)\b.*\bsettings?\b)");
+const std::regex kResetWords(R"(\breset\b.*\b(?:default|factory)\w*)");
+const std::regex kBootOrderValue(R"((?:to|:)\s*([a-z0-9, ]+)$)");
+const std::regex kBootOrderQuery(R"(\b(?:what's|what is|show)\b)");
 
-const std::map<std::wstring, std::vector<std::wstring>> kAliases = {
-    {L"secure_boot", {L"secure boot", L"secureboot"}},
-    {L"virtualization", {L"virtualization", L"virtualisation", L"vt-x", L"vtx", L"svm", L"amd-v"}},
-    {L"tpm", {L"tpm", L"trusted platform module"}},
-    {L"fast_boot", {L"fast boot", L"fastboot", L"quick boot"}},
-    {L"xmp", {L"xmp", L"docp", L"memory profile", L"ram overclock"}},
-    {L"cpu_turbo", {L"turbo", L"cpu turbo", L"boost clock", L"turbo boost"}},
-    {L"power_profile", {L"power profile", L"power plan", L"power mode"}},
-    {L"fan_profile", {L"fan profile", L"fan curve", L"fan speed", L"fan mode"}},
-    {L"boot_order", {L"boot order", L"boot priority", L"boot sequence"}},
+const std::map<std::string, std::vector<std::string>> kAliases = {
+    {"secure_boot", {"secure boot", "secureboot"}},
+    {"virtualization", {"virtualization", "virtualisation", "vt-x", "vtx", "svm", "amd-v"}},
+    {"tpm", {"tpm", "trusted platform module"}},
+    {"fast_boot", {"fast boot", "fastboot", "quick boot"}},
+    {"xmp", {"xmp", "docp", "memory profile", "ram overclock"}},
+    {"cpu_turbo", {"turbo", "cpu turbo", "boost clock", "turbo boost"}},
+    {"power_profile", {"power profile", "power plan", "power mode"}},
+    {"fan_profile", {"fan profile", "fan curve", "fan speed", "fan mode"}},
+    {"boot_order", {"boot order", "boot priority", "boot sequence"}},
 };
 
-const std::vector<std::wstring> kBoolSettings = {
-    L"secure_boot", L"virtualization", L"tpm", L"fast_boot", L"xmp", L"cpu_turbo"};
+const std::vector<std::string> kBoolSettings = {
+    "secure_boot", "virtualization", "tpm", "fast_boot", "xmp", "cpu_turbo"};
 
-const std::map<std::wstring, std::vector<std::wstring>> kEnumValues = {
-    {L"power_profile", {L"power_saver", L"power saver", L"balanced", L"performance"}},
-    {L"fan_profile", {L"silent", L"standard", L"performance", L"full speed", L"full_speed"}},
+const std::map<std::string, std::vector<std::string>> kEnumValues = {
+    {"power_profile", {"power_saver", "power saver", "balanced", "performance"}},
+    {"fan_profile", {"silent", "standard", "performance", "full speed", "full_speed"}},
 };
 
-bool Contains(const std::vector<std::wstring>& v, const std::wstring& x) {
+bool Contains(const std::vector<std::string>& v, const std::string& x) {
     return std::find(v.begin(), v.end(), x) != v.end();
 }
 
-std::wstring FindSetting(const std::wstring& t) {
+std::string FindSetting(const std::string& t) {
     for (const auto& kv : kAliases) {
         for (const auto& phrase : kv.second) {
-            if (t.find(phrase) != std::wstring::npos) return kv.first;
+            if (t.find(phrase) != std::string::npos) return kv.first;
         }
     }
-    return L"";
+    return "";
 }
 
 } // namespace
 
-bool ParseRule(const std::wstring& text, Command& out) {
-    std::wstring t = ToLower(text);
+bool ParseRule(const std::string& text, Command& out) {
+    std::string t = ToLower(text);
 
-    if (std::regex_search(t, kListWords) || t == L"list" || t == L"settings" || t == L"status") {
-        out = Command{Action::List, L"", L"", text};
+    if (std::regex_search(t, kListWords) || t == "list" || t == "settings" || t == "status") {
+        out = Command{Action::List, "", "", text};
         return true;
     }
     if (std::regex_search(t, kResetWords)) {
-        out = Command{Action::Reset, L"", L"", text};
+        out = Command{Action::Reset, "", "", text};
         return true;
     }
 
-    std::wstring setting = FindSetting(t);
+    std::string setting = FindSetting(t);
     if (setting.empty()) return false;
 
     if (Contains(kBoolSettings, setting)) {
         if (std::regex_search(t, kOnWords)) {
-            out = Command{Action::Set, setting, L"true", text};
+            out = Command{Action::Set, setting, "true", text};
             return true;
         }
         if (std::regex_search(t, kOffWords)) {
-            out = Command{Action::Set, setting, L"false", text};
+            out = Command{Action::Set, setting, "false", text};
             return true;
         }
         if (std::regex_search(t, kQueryWords)) {
-            out = Command{Action::Get, setting, L"", text};
+            out = Command{Action::Get, setting, "", text};
             return true;
         }
         return false;
@@ -90,26 +91,26 @@ bool ParseRule(const std::wstring& text, Command& out) {
     auto enumIt = kEnumValues.find(setting);
     if (enumIt != kEnumValues.end()) {
         for (const auto& value : enumIt->second) {
-            if (t.find(value) != std::wstring::npos) {
+            if (t.find(value) != std::string::npos) {
                 out = Command{Action::Set, setting, value, text};
                 return true;
             }
         }
         if (std::regex_search(t, kQueryWords)) {
-            out = Command{Action::Get, setting, L"", text};
+            out = Command{Action::Get, setting, "", text};
             return true;
         }
         return false;
     }
 
-    if (setting == L"boot_order") {
-        std::wsmatch m;
+    if (setting == "boot_order") {
+        std::smatch m;
         if (std::regex_search(t, m, kBootOrderValue)) {
             out = Command{Action::Set, setting, m[1].str(), text};
             return true;
         }
-        if (std::regex_search(t, std::wregex(LR"(\b(?:what's|what is|show)\b)"))) {
-            out = Command{Action::Get, setting, L"", text};
+        if (std::regex_search(t, kBootOrderQuery)) {
+            out = Command{Action::Get, setting, "", text};
             return true;
         }
         return false;

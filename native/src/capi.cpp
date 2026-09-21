@@ -1,30 +1,14 @@
+// Plain C ABI, shared by Windows and Linux builds (see capi.h for the
+// _WIN32 export-macro guard). No platform headers needed here at all now
+// that Result/Command are UTF-8 std::string throughout.
 #include "langbios/capi.h"
 #include "langbios/engine.hpp"
 #include "langbios/rule_parser.hpp"
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
 #include <cstdio>
 #include <cstring>
 #include <string>
 
 namespace {
-
-std::wstring Utf8ToWide(const char* s) {
-    if (!s || !*s) return L"";
-    int len = MultiByteToWideChar(CP_UTF8, 0, s, -1, nullptr, 0);
-    if (len <= 0) return L"";
-    std::wstring w(len - 1, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, s, -1, w.data(), len);
-    return w;
-}
-
-std::string WideToUtf8(const std::wstring& w) {
-    if (w.empty()) return {};
-    int len = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), nullptr, 0, nullptr, nullptr);
-    std::string s(len, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), s.data(), len, nullptr, nullptr);
-    return s;
-}
 
 std::string JsonEscape(const std::string& in) {
     std::string out;
@@ -52,7 +36,7 @@ std::string JsonEscape(const std::string& in) {
 } // namespace
 
 int langbios_execute(const char* utf8Text, char* outBuf, int outBufLen) {
-    std::wstring text = Utf8ToWide(utf8Text);
+    std::string text = utf8Text ? utf8Text : "";
 
     langbios::Command cmd;
     langbios::Result result;
@@ -60,12 +44,12 @@ int langbios_execute(const char* utf8Text, char* outBuf, int outBufLen) {
         result = langbios::Execute(cmd);
     } else {
         result = langbios::Result::Failure(
-            L"I didn't understand that. Try things like 'enable secure boot', "
-            L"'what's my fan profile', or 'list settings'.");
+            "I didn't understand that. Try things like 'enable secure boot', "
+            "'what's my fan profile', or 'list settings'.");
     }
 
-    std::string message = JsonEscape(WideToUtf8(result.message));
-    std::string value = JsonEscape(WideToUtf8(result.value));
+    std::string message = JsonEscape(result.message);
+    std::string value = JsonEscape(result.value);
     std::string json = "{\"ok\":" + std::string(result.ok ? "true" : "false") +
                         ",\"message\":\"" + message + "\",\"value\":\"" + value + "\"}";
 
