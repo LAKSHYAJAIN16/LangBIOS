@@ -123,14 +123,6 @@ The native layer has no automated test suite yet (COM/WMI and real firmware acce
 
 The badges at the top are real for *this* repo. If you fork this project, here are drop-in options for the rest — pick whichever fit, fill in your own usernames/links:
 
-**Funding / support** (pick one or more):
-```md
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/YOUR_USERNAME)
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/YOUR_USERNAME)](https://github.com/sponsors/YOUR_USERNAME)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?logo=ko-fi&logoColor=white)](https://ko-fi.com/YOUR_USERNAME)
-[![Patreon](https://img.shields.io/badge/Patreon-F96854?logo=patreon&logoColor=white)](https://patreon.com/YOUR_USERNAME)
-```
-
 **Community / contact** (pick one or more):
 ```md
 [![Discussions](https://img.shields.io/github/discussions/LAKSHYAJAIN16/LangBIOS)](https://github.com/LAKSHYAJAIN16/LangBIOS/discussions)
