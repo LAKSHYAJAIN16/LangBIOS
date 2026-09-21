@@ -7,5 +7,11 @@
   "cpu_turbo": true,
   "power_profile": "balanced",
   "fan_profile": "standard",
-  "boot_order": ["ssd", "usb", "network", "hdd", "cdrom"]
+  "boot_order": [
+    "ssd",
+    "usb",
+    "network",
+    "hdd",
+    "cdrom"
+  ]
 }
