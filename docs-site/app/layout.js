@@ -1,4 +1,11 @@
+import { Abyssinica_SIL } from "next/font/google";
 import "./globals.css";
+
+const abyssinicaSIL = Abyssinica_SIL({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-body",
+});
 
 export const metadata = {
   title: "LangBIOS Docs",
@@ -7,7 +14,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" className={abyssinicaSIL.variable}>
       <body>{children}</body>
     </html>
   );
