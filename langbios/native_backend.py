@@ -1,7 +1,7 @@
 """ctypes bridge to the compiled native/build/langbios_native.{dll,so}.
 
-Unlike bios_state.py (a mock JSON file), every call through here is a
-real firmware/hardware operation: standard UEFI variable reads/writes,
+Every call through here is a real firmware/hardware operation: standard
+UEFI variable reads/writes,
 WMI (Windows) or sysfs (Linux) TPM queries, and (on Dell/HP/Lenovo, or
 any Linux box with a firmware-attributes driver bound) real vendor
 BIOS-setting writes. See the top-level README for how that's actually

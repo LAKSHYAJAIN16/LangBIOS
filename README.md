@@ -14,32 +14,24 @@ langbios> what's my fan profile
 langbios> list settings
 ```
 
-## Two backends, same command surface
+## How it's built
 
-| | Mock | Real |
-|---|---|---|
-| What it touches | A local JSON file | Actual firmware (UEFI variables, WMI/sysfs) |
-| Safe on any machine | Yes | Reads are safe; writes change real NVRAM |
-| Needs elevation | No | Yes (Administrator / root) |
-| Needs specific hardware | No | Some settings need Dell/HP/Lenovo (or their Linux driver) |
-| Where | `langbios/bios_state.py` (Python only) | `native/` (C++) + `langbios/native_backend.py` (ctypes bridge) |
+- `native/` (C++): the real engine. A rule-based parser, a dispatcher that routes each setting to the right real backend, and platform-specific firmware access (`native/src/windows/`, `native/src/linux/`). Compiles to `langbios_native.{dll,so}` (loaded by Python) and a standalone `langbios_cli` binary.
+- `langbios/` (Python): `native_backend.py` is a `ctypes` bridge into the compiled library; `llm_parser.py` is an optional local-LLM fallback (via Ollama) for phrasing the native rule parser doesn't recognize; `cli.py` ties it together into a REPL.
 
-Start with mock mode to try the natural-language layer risk-free. Switch to `--real` once you understand what's actually possible on *your* hardware (see the table below — it's not everything).
+This talks to **real firmware** — there is no simulated/mock mode. Reads are safe everywhere; writes change real NVRAM and need elevation (see below). Check the capability table further down for what's actually possible on *your* hardware before running a `set`/`enable`/`disable` command.
 
 ## Quick start
 
 ```bash
 pip install -r requirements-dev.txt
 
-# Mock mode - safe on any machine, no build step needed
-python -m langbios.cli "enable secure boot"
+# Build the native layer first (see "Building the native layer" below), then:
+python -m langbios.cli "list settings"
 python -m langbios.cli            # interactive REPL
-
-# Real mode - build the native layer first (see below), then:
-python -m langbios.cli --real "list settings"
 ```
 
-Optional local LLM fallback for phrasing the rule-parser doesn't recognize (works in both modes): install [Ollama](https://ollama.com), `ollama pull llama3.2`, `ollama serve`. Use `--no-llm` to disable it.
+Optional local LLM fallback for phrasing the rule-parser doesn't recognize: install [Ollama](https://ollama.com), `ollama pull llama3.2`, `ollama serve`. Use `--no-llm` to disable it.
 
 ## How real BIOS access actually works
 
@@ -114,7 +106,7 @@ On this project's own dev machine (Microsoft Surface, Snapdragon/ARM64, no vendo
 ## Tests
 
 ```bash
-python -m pytest        # Python layer (mock mode, rule parser, LLM fallback, interpreter) - runs in CI on Linux + Windows
+python -m pytest        # Python layer (LLM fallback parser) - runs in CI on Linux + Windows
 ```
 
 The native layer has no automated test suite yet (COM/WMI and real firmware access don't sandbox well in CI) — it's been verified manually, as described above.

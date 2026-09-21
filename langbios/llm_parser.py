@@ -12,7 +12,7 @@ import os
 import urllib.error
 import urllib.request
 
-from .bios_state import SETTINGS
+from .settings_registry import SETTINGS
 from .commands import Command
 
 OLLAMA_URL = os.environ.get("LANGBIOS_OLLAMA_URL", "http://localhost:11434")
