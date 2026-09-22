@@ -38,7 +38,7 @@ langbios "list settings"
 langbios                          # interactive REPL
 ```
 
-No Python required for this path, and no API key or Ollama install either: phrasing the rule parser doesn't recognize falls back to a small bundled semantic-matching model (see "How the local fallback works" below), running fully offline, adding only ~46MB to the installer. See "Building the native layer" below for Linux, or to build the native pieces manually.
+No Python required for this path, and no API key or Ollama install either: phrasing the rule parser doesn't recognize falls back to a small bundled semantic-matching model (see "How the local fallback works" below), running fully offline, adding only ~46MB to the installer. See "Building the native layer" below for Linux/macOS, or to build the Windows native pieces manually.
 
 ## Quick start (from source, any platform)
 
@@ -78,12 +78,13 @@ This is deterministic and can't hallucinate an invalid setting the way a generat
 
 | Setting | Mechanism | Writable from software? | Works on |
 |---|---|---|---|
-| `boot_order` | Standard UEFI variables (`BootOrder`/`Boot####`) | **Yes** | Any UEFI machine (elevated) |
-| `secure_boot` | Standard UEFI variable | No, firmware enforces this by design (authenticated-variable protection) | Any UEFI machine (elevated, read-only) |
-| `tpm` | WMI (`Win32_Tpm`) / sysfs (`/sys/class/tpm`) | No, not an OS-writable setting anywhere | Any machine with a TPM (elevated) |
-| `virtualization`, `fan_profile`, `power_profile`, `cpu_turbo`, `fast_boot`, `xmp` | Vendor WMI classes (Windows) / `/sys/class/firmware-attributes` (Linux) | Yes, **only if** the vendor stack is present | Dell / HP / Lenovo (Windows: their own WMI driver; Linux: `dell-wmi-sysman`/`think-lmi`/`hp-wmi` kernel module) |
+| `boot_order` | Standard UEFI variables (`BootOrder`/`Boot####`) | **Yes** | Any UEFI machine (elevated). macOS: single default startup disk via `bless`, Intel-only |
+| `secure_boot` | Standard UEFI variable | No, firmware enforces this by design (authenticated-variable protection) | Any UEFI machine (elevated, read-only). Not accessible from software at all on macOS |
+| `tpm` | WMI (`Win32_Tpm`) / sysfs (`/sys/class/tpm`) | No, not an OS-writable setting anywhere | Any machine with a TPM (elevated). Doesn't exist on macOS (Secure Enclave instead) |
+| `virtualization`, `fan_profile`, `power_profile`, `cpu_turbo`, `fast_boot`, `xmp` | Vendor WMI classes (Windows) / `/sys/class/firmware-attributes` (Linux) | Yes, **only if** the vendor stack is present | Dell / HP / Lenovo (Windows: their own WMI driver; Linux: `dell-wmi-sysman`/`think-lmi`/`hp-wmi` kernel module). No vendor interface exists on macOS at all |
+| `volume`, `mute` | Real OS audio API - Core Audio (Windows), `pactl`/PulseAudio (Linux), `osascript` (macOS) | **Yes**, on all three platforms | Any machine with a default audio output device - no elevation needed |
 
-On anything else (most DIY desktops, and this project's own dev machine, a Microsoft Surface), that last row honestly reports "no vendor BIOS management interface available" instead of pretending to succeed.
+On BIOS-specific settings, anything else (most DIY desktops, and this project's own dev machine, a Microsoft Surface) honestly reports "no vendor BIOS management interface available" instead of pretending to succeed. `volume`/`mute` are the first "beyond firmware" settings this project supports - real OS-level hardware control, not a BIOS setting at all, added because the actual mechanism (a documented OS audio API) is genuinely universal across all three platforms, unlike most BIOS vendor attributes.
 
 ## Building the native layer
 
@@ -109,14 +110,29 @@ Produces `native/build/langbios_native.so` and `native/build/langbios_cli`.
 
 > **Honesty note:** the Linux backend (`native/src/linux/`) was written against the documented kernel ABIs (`efivarfs`, `/sys/class/firmware-attributes`, `/sys/class/tpm`) but developed and tested only on Windows, with no Linux hardware in this environment to verify it against real firmware. The Windows backend *has* been verified end-to-end against real hardware (see below). Please test the Linux write path carefully before trusting it, ideally starting with read-only commands.
 
+### macOS
+
+Requires Xcode Command Line Tools (`clang++`).
+
+```bash
+./native/build-macos.sh
+```
+
+Produces `native/build/langbios_native.dylib` and `native/build/langbios_cli`.
+
+> **Honesty note:** same caveat as Linux - written against documented Apple tools (`bless`, `diskutil`, `osascript`) but not run on real Mac hardware in this environment. The macOS backend is also deliberately thinner than Windows/Linux: Apple publishes no vendor BIOS interface at all, there's no TPM (Secure Enclave instead), Secure Boot is unreachable from a running OS by design, and boot disk selection only works on Intel Macs. See `native/src/macos/*.cpp` for why each of those is a real platform limitation, not a gap in this code.
+
 ## Elevation / permissions
 
-Real firmware access needs elevated privileges, on both OSes, by design:
+Real firmware access needs elevated privileges, on every OS, by design:
 
 - **Windows**: `SeSystemEnvironmentPrivilege`, only ever granted to Administrators, must additionally be enabled in-process. Run from an elevated terminal, or enable `sudo` under Settings → Privacy & Security → For developers.
 - **Linux**: root / `CAP_SYS_ADMIN`. Run with `sudo`.
+- **macOS**: root, for the boot-disk write path (`bless`); reads generally don't need it.
 
 Non-elevated runs still work and report exactly *why* an operation needs elevation, rather than failing silently.
+
+`volume`/`mute` are the exception: real OS audio APIs are deliberately unprivileged (any logged-in user can control system volume), so those work without elevation on all three platforms.
 
 ## Safety notes
 

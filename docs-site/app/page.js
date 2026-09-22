@@ -110,6 +110,22 @@ export default function Page() {
             Windows backend has been verified end-to-end against real hardware. Test the Linux write path
             carefully, starting with read-only commands.
           </div>
+
+          <h3>macOS</h3>
+          <p>Requires Xcode Command Line Tools (<code>clang++</code>).</p>
+          <pre>
+            <code>./native/build-macos.sh</code>
+          </pre>
+          <p>
+            Produces <code>native/build/langbios_native.dylib</code> and <code>native/build/langbios_cli</code>.
+          </p>
+          <div className="note">
+            Same honesty caveat as Linux, plus this backend is deliberately thinner: Apple publishes no vendor
+            BIOS interface at all, there&apos;s no TPM (Secure Enclave instead), Secure Boot is unreachable from
+            a running OS by design, and boot disk selection only works on Intel Macs via <code>bless</code>.
+            See <code>native/src/macos/*.cpp</code> for why each is a real platform limitation, not a gap in
+            this code.
+          </div>
         </section>
 
         <section id="run">
@@ -135,7 +151,7 @@ export default function Page() {
         <section id="examples">
           <h2>Examples</h2>
           <pre>
-            <code>{`list settings\nwhat's my secure boot\nenable secure boot\ndisable virtualization\nwhat's my fan profile\nset fan profile to silent\nset power profile to performance\nwhat's my boot order\nset boot order to Windows Boot Manager, USB Storage, Internal Storage\nreset to factory defaults`}</code>
+            <code>{`list settings\nwhat's my secure boot\nenable secure boot\ndisable virtualization\nwhat's my fan profile\nset fan profile to silent\nset power profile to performance\nwhat's my boot order\nset boot order to Windows Boot Manager, USB Storage, Internal Storage\nset volume to 40\nmute\nis it muted\nreset to factory defaults`}</code>
           </pre>
           <p>
             Boot order values must match your machine&apos;s actual boot entry names (run{" "}
@@ -188,14 +204,25 @@ export default function Page() {
                 </td>
                 <td>Vendor WMI (Windows) / firmware-attributes (Linux)</td>
                 <td>Yes, if the vendor stack is present</td>
-                <td>Dell / HP / Lenovo only</td>
+                <td>Dell / HP / Lenovo only (no vendor interface exists on macOS)</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>volume</code>, <code>mute</code>
+                </td>
+                <td>Real OS audio API: Core Audio (Windows), pactl/PulseAudio (Linux), osascript (macOS)</td>
+                <td>Yes, on all three platforms</td>
+                <td>Any machine with a default audio output - no elevation needed</td>
               </tr>
             </tbody>
           </table>
           </div>
           <p>
-            On anything else, LangBIOS reports &quot;no vendor BIOS management interface available&quot; rather
-            than pretending a setting changed.
+            On BIOS-specific settings, anything else reports &quot;no vendor BIOS management interface
+            available&quot; rather than pretending a setting changed. <code>volume</code>/<code>mute</code> are
+            the first &quot;beyond firmware&quot; settings this project supports - real OS-level hardware
+            control, not a BIOS setting at all, since the actual mechanism is genuinely universal across all
+            three platforms, unlike most BIOS vendor attributes.
           </p>
         </section>
 
@@ -210,10 +237,18 @@ export default function Page() {
             <li>
               <strong>Linux:</strong> needs root / <code>CAP_SYS_ADMIN</code>. Run with <code>sudo</code>.
             </li>
+            <li>
+              <strong>macOS:</strong> needs root for the boot-disk write path (<code>bless</code>); reads
+              generally don&apos;t.
+            </li>
           </ul>
           <p>
             Non-elevated runs still work and explain exactly why an operation needs elevation, instead of
             failing silently.
+          </p>
+          <p>
+            <code>volume</code>/<code>mute</code> are the exception: real OS audio APIs are deliberately
+            unprivileged, so those work without elevation on all three platforms.
           </p>
 
           <h3>Local LLM fallback (optional)</h3>
