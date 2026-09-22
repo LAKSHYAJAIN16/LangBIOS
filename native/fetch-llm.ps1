@@ -1,23 +1,34 @@
-# Fetches the bundled local LLM assets into native/vendor/ (gitignored -
-# these are large binaries, never committed). Run this once before
-# building the installer, or before running the native CLI if you want
-# the LLM fallback available without Ollama.
+# Fetches the bundled local natural-language-understanding assets into
+# native/vendor/ (gitignored - large binaries, never committed). Run this
+# once before building the installer, or before running the native CLI
+# if you want phrasing the rule parser misses to be understood without
+# Ollama.
+#
+# Architecture: semantic similarity matching, not text generation. The
+# actual task here is classification (map one sentence onto one of a
+# few dozen known settings/actions), not open-ended chat - a small
+# *embedding* model that turns text into a comparable vector fits that
+# shape far better than a generative LLM, and is dramatically smaller
+# since it doesn't need a large vocabulary-sized output layer. Canonical
+# example phrases (native/data/canonical_intents.json) are embedded once
+# offline (see embed-intents.ps1); at runtime, the fallback embeds the
+# user's text and finds the nearest canonical example by cosine
+# similarity - deterministic, can't hallucinate an invalid setting, and
+# gives a real confidence score to reject nonsense input.
 #
 # Downloads:
-#   - llama.cpp (CPU-only, x64) prebuilt binaries from its GitHub releases
-#   - Qwen2.5-0.5B-Instruct, Q4_K_M quantized GGUF (~470MB) from Hugging Face
-#     (Apache 2.0 licensed, small enough for CPU-only inference to be
-#     reasonably fast, good enough for structured single-command JSON
-#     output even though it's not a strong general chat model)
+#   - llama.cpp (CPU-only, x64) prebuilt binaries, run in --embedding
+#     server mode (not the text-generation CLI)
+#   - bge-small-en-v1.5, Q8_0 quantized GGUF (~37MB) from Hugging Face
+#     (MIT licensed, 384-dim sentence embeddings, 33M params)
 #
-# Tried and rejected: SmolLM2-360M-Instruct (smaller vocab, ~270MB at
-# Q4_K_M - 45% smaller). Tested head-to-head on this project's exact
-# JSON-extraction prompts: it produced verbose multi-line JSON that
-# got truncated at the token budget, got a plain "enable secure boot"
-# backwards (returned action "get" instead of "set"), and confidently
-# hallucinated a setting for pure gibberish input instead of reporting
-# "unknown" - a materially worse failure mode than Qwen's. Not worth
-# the size savings; re-test before swapping again.
+# Tried and rejected (generative LLM approach): Qwen2.5-0.5B-Instruct at
+# Q4_K_M (~490MB) worked but was 13x the size of this approach for worse
+# reliability (occasional malformed JSON, no natural confidence signal
+# to reject gibberish). SmolLM2-360M-Instruct (~270MB) was smaller but
+# got actions backwards and hallucinated settings for nonsense input.
+# The embedding-similarity approach beats both on size, latency, AND
+# correctness - it's simply the right tool for a classification task.
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -32,26 +43,24 @@ $releaseTag = "b11094"
 $zipUrl = "https://github.com/ggml-org/llama.cpp/releases/download/$releaseTag/llama-$releaseTag-bin-win-cpu-x64.zip"
 $zipPath = Join-Path $llamacppDir "llama-cpu-x64.zip"
 
-# Only llama-cli.exe's real, traced dependency chain (verified with
-# llvm-objdump -p): llama-cli-impl -> llama-server-impl -> mtmd/llama/
-# ggml-base/ggml; llama-common -> llama/ggml/ggml-base; ggml-base ->
-# libomp. Every ggml-cpu-<arch>.dll variant is kept - those are loaded
-# dynamically at runtime based on the actual CPU, not visible in the
-# static import table, so trimming them would break the wrong end
-# user's machine. The release zip also ships ~20 standalone tools
-# (quantize/perplexity/bench/multimodal CLIs, an RPC server) this
-# project never invokes; those and their private *-impl.dlls are
-# dropped. Note this barely changes the final installer size (LZMA
-# already compresses those tiny stub .exes to near nothing) - it's
-# real, verified cleanup, just not a meaningful size lever. The model
-# file (see below) is the actual size driver.
+# llama-server.exe's real, traced dependency chain (verified with
+# llvm-objdump -p): llama-server.exe -> llama-server-impl.dll ->
+# mtmd.dll, llama.dll, ggml-base.dll, ggml.dll, llama-common.dll;
+# llama-common.dll -> llama.dll, ggml.dll, ggml-base.dll; ggml-base.dll
+# -> libomp.dll. Every ggml-cpu-<arch>.dll variant is kept - those are
+# loaded dynamically at runtime based on the actual CPU, not visible in
+# the static import table, so trimming them would break whichever end
+# user doesn't have that exact microarchitecture. Everything else in
+# the release zip (~20 standalone tools this project never invokes,
+# plus llama-cli.exe itself - superseded here by llama-server.exe in
+# embedding mode) is dropped.
 $neededFiles = @(
-    "llama-cli.exe", "llama-cli-impl.dll", "llama-server-impl.dll",
+    "llama-server.exe", "llama-server-impl.dll",
     "llama-common.dll", "llama.dll", "mtmd.dll", "ggml.dll", "ggml-base.dll",
     "libomp.dll", "LICENSE-LLVM-OpenMP"
 )
 
-if (-not (Test-Path (Join-Path $binDir "llama-cli.exe"))) {
+if (-not (Test-Path (Join-Path $binDir "llama-server.exe"))) {
     Write-Host "Downloading llama.cpp $releaseTag (CPU x64, ~19MB) ..."
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
     $extractDir = Join-Path $llamacppDir "_extract"
@@ -69,11 +78,11 @@ if (-not (Test-Path (Join-Path $binDir "llama-cli.exe"))) {
     Write-Host "llama.cpp binaries already present, skipping."
 }
 
-$modelUrl = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf"
-$modelPath = Join-Path $modelsDir "qwen2.5-0.5b-instruct-q4_k_m.gguf"
+$modelUrl = "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf"
+$modelPath = Join-Path $modelsDir "bge-small-en-v1.5-q8_0.gguf"
 
 if (-not (Test-Path $modelPath)) {
-    Write-Host "Downloading Qwen2.5-0.5B-Instruct Q4_K_M (~470MB) ..."
+    Write-Host "Downloading bge-small-en-v1.5 Q8_0 (~37MB) ..."
     Invoke-WebRequest -Uri $modelUrl -OutFile $modelPath
     Write-Host "Model -> $modelPath"
 } else {
@@ -81,3 +90,12 @@ if (-not (Test-Path $modelPath)) {
 }
 
 Write-Host "Done. LLM assets ready in $vendor"
+
+$embeddingsPath = Join-Path $root "data\canonical_embeddings.bin"
+if (-not (Test-Path $embeddingsPath)) {
+    Write-Host ""
+    Write-Host "Precomputing canonical intent embeddings ..."
+    & (Join-Path $root "embed-intents.ps1")
+} else {
+    Write-Host "Canonical embeddings already present ($embeddingsPath) - re-run embed-intents.ps1 directly if you edited canonical_intents.json."
+}

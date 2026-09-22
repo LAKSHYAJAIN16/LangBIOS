@@ -148,14 +148,12 @@ Result Interpret(const std::string& text) {
         return Execute(cmd);
     }
 
+    // Semantic fallback: only ever returns true with a confident match
+    // above the similarity threshold (see llm_fallback.cpp), so there's
+    // no separate "unknown but matched" case to handle here - either it
+    // found a real canonical intent or it didn't.
     Command llmCmd;
     if (LlmFallbackParse(text, llmCmd)) {
-        if (llmCmd.action == Action::Unknown) {
-            return Result::Failure(
-                "Even the bundled local model couldn't confidently map that to "
-                "a BIOS setting. Try being more specific, e.g. 'set fan profile "
-                "to silent'.");
-        }
         return Execute(llmCmd);
     }
 

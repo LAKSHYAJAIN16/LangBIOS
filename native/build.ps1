@@ -42,10 +42,13 @@ Write-Host "Building langbios_cli.exe ..."
     @commonSources @windowsSources (Join-Path $src "cli.cpp") @libs
 if ($LASTEXITCODE -ne 0) { throw "CLI build failed" }
 
-# Bundled local LLM assets (fetched separately via fetch-llm.ps1, since
-# they're large binaries not committed to git) get copied alongside the
-# built exe so the CLI's llm_fallback can find them at ./llamacpp and
-# ./models relative to itself - same layout the installer packages.
+# Bundled local NL-understanding assets (fetched separately via
+# fetch-llm.ps1, since the binaries/model are too large to commit) get
+# copied alongside the built exe so llm_fallback can find them at
+# ./llamacpp, ./models, and ./data relative to itself - same layout the
+# installer packages. canonical_embeddings.bin (native/data/, small,
+# committed to git) always ships if present, independent of whether the
+# large vendor assets were fetched.
 $vendorLlamacppBin = Join-Path $root "vendor\llamacpp\bin"
 $vendorModels = Join-Path $root "vendor\models"
 if ((Test-Path $vendorLlamacppBin) -and (Test-Path $vendorModels)) {
@@ -57,6 +60,13 @@ if ((Test-Path $vendorLlamacppBin) -and (Test-Path $vendorModels)) {
     Copy-Item -Force (Join-Path $vendorModels "*.gguf") $destModels
 } else {
     Write-Host "No bundled LLM assets found (run native\fetch-llm.ps1 to get them) - CLI will run rule-parser-only."
+}
+
+$canonicalEmbeddings = Join-Path $root "data\canonical_embeddings.bin"
+if (Test-Path $canonicalEmbeddings) {
+    $destData = Join-Path $out "data"
+    New-Item -ItemType Directory -Force -Path $destData | Out-Null
+    Copy-Item -Force $canonicalEmbeddings $destData
 }
 
 Write-Host "Build succeeded -> $out"

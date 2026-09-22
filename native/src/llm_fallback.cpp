@@ -1,10 +1,10 @@
 #include "langbios/llm_fallback.hpp"
 #include <array>
-#include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <sstream>
+#include <vector>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -12,6 +12,7 @@
 #define LB_POPEN _popen
 #define LB_PCLOSE _pclose
 #else
+#include <csignal>
 #include <unistd.h>
 #define LB_POPEN popen
 #define LB_PCLOSE pclose
@@ -22,6 +23,17 @@ namespace langbios {
 namespace fs = std::filesystem;
 
 namespace {
+
+constexpr int kEmbeddingDim = 384; // bge-small-en-v1.5
+constexpr int kPort = 8931;
+constexpr float kSimilarityThreshold = 0.65f; // see embed-intents.ps1 validation notes
+
+struct CanonicalIntent {
+    Action action;
+    std::string setting;
+    std::string value;
+    std::array<float, kEmbeddingDim> embedding;
+};
 
 fs::path ExecutableDir() {
 #ifdef _WIN32
@@ -37,105 +49,27 @@ fs::path ExecutableDir() {
 #endif
 }
 
-fs::path LlamaCliPath() {
+fs::path ServerPath() {
 #ifdef _WIN32
-    return ExecutableDir() / "llamacpp" / "bin" / "llama-cli.exe";
+    return ExecutableDir() / "llamacpp" / "bin" / "llama-server.exe";
 #else
-    return ExecutableDir() / "llamacpp" / "bin" / "llama-cli";
+    return ExecutableDir() / "llamacpp" / "bin" / "llama-server";
 #endif
 }
 
 fs::path ModelPath() {
-    return ExecutableDir() / "models" / "qwen2.5-0.5b-instruct-q4_k_m.gguf";
+    return ExecutableDir() / "models" / "bge-small-en-v1.5-q8_0.gguf";
 }
 
-const char* kSystemPrompt =
-    "You translate a user's natural-language request about their computer's "
-    "BIOS/UEFI settings into a single strict JSON object, and nothing else.\n"
-    "\n"
-    "Available settings:\n"
-    "- secure_boot (bool): UEFI Secure Boot\n"
-    "- virtualization (bool): CPU virtualization (VT-x/AMD-V)\n"
-    "- tpm (bool): Trusted Platform Module\n"
-    "- fast_boot (bool): Fast Boot\n"
-    "- xmp (bool): Memory XMP/DOCP overclock profile\n"
-    "- cpu_turbo (bool): CPU turbo/boost clocks\n"
-    "- power_profile (enum: power_saver, balanced, performance)\n"
-    "- fan_profile (enum: silent, standard, performance, full_speed)\n"
-    "- boot_order (a comma-separated list of real boot entry descriptions)\n"
-    "\n"
-    "Respond with ONLY a JSON object of this shape:\n"
-    "{\"action\": \"get\"|\"set\"|\"list\"|\"reset\"|\"unknown\", \"setting\": \"<name or null>\", \"value\": <value or null>}\n"
-    "\n"
-    "Rules:\n"
-    "- action \"list\" means the user wants to see all current settings.\n"
-    "- action \"reset\" means the user wants factory defaults restored.\n"
-    "- action \"get\" means the user is asking the current value of one setting.\n"
-    "- action \"set\" means the user wants to change one setting; include \"value\".\n"
-    "- For bool settings use JSON true/false.\n"
-    "- If you cannot confidently map the request, respond with action \"unknown\".\n"
-    "- Output JSON only. No explanation, no markdown fences.\n";
-
-// Extracts the first balanced {...} object anywhere in `text` - the
-// CLI's stdout includes an ASCII banner, ANSI color codes, and an
-// echoed prompt before the actual generated JSON, and this is far more
-// robust than trying to line-delimit around that noise.
-bool ExtractJsonObject(const std::string& text, std::string& out) {
-    size_t start = text.find('{');
-    while (start != std::string::npos) {
-        int depth = 0;
-        for (size_t i = start; i < text.size(); ++i) {
-            if (text[i] == '{') {
-                depth++;
-            } else if (text[i] == '}') {
-                depth--;
-                if (depth == 0) {
-                    out = text.substr(start, i - start + 1);
-                    return true;
-                }
-            }
-        }
-        start = text.find('{', start + 1);
-    }
-    return false;
+fs::path EmbeddingsDataPath() {
+    // Shipped as native/data/canonical_embeddings.bin -> installed
+    // alongside the exe at ./data/canonical_embeddings.bin (see
+    // installer's [Files] section and build.ps1's copy step).
+    return ExecutableDir() / "data" / "canonical_embeddings.bin";
 }
 
-// Minimal field extraction for our specific known {action,setting,value}
-// schema - not a general JSON parser, but sufficient for one small,
-// fully-controlled response shape without pulling in a JSON library.
-std::string JsonStringField(const std::string& json, const std::string& key) {
-    std::string pattern = "\"" + key + "\"";
-    size_t pos = json.find(pattern);
-    if (pos == std::string::npos) return "";
-    pos = json.find(':', pos + pattern.size());
-    if (pos == std::string::npos) return "";
-    pos++;
-    while (pos < json.size() && std::isspace(static_cast<unsigned char>(json[pos]))) pos++;
-    if (pos >= json.size()) return "";
-    if (json[pos] == 'n') return ""; // null
-    if (json[pos] == '"') {
-        size_t i = pos + 1;
-        std::string value;
-        while (i < json.size() && json[i] != '"') {
-            if (json[i] == '\\' && i + 1 < json.size()) {
-                value += json[i + 1];
-                i += 2;
-                continue;
-            }
-            value += json[i];
-            i++;
-        }
-        return value;
-    }
-    size_t end = pos;
-    while (end < json.size() && json[end] != ',' && json[end] != '}') end++;
-    std::string value = json.substr(pos, end - pos);
-    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) value.pop_back();
-    return value;
-}
-
-std::string ReadAllStdout(const std::string& command) {
-    FILE* pipe = LB_POPEN(command.c_str(), "r");
+std::string RunShell(const std::string& cmd) {
+    FILE* pipe = LB_POPEN(cmd.c_str(), "r");
     if (!pipe) return "";
     std::string output;
     std::array<char, 512> buf;
@@ -147,69 +81,222 @@ std::string ReadAllStdout(const std::string& command) {
     return output;
 }
 
+// Parses the first top-level JSON array of numbers found after the key
+// "embedding" - avoids pulling in a JSON library for one fixed,
+// fully-controlled response shape.
+bool ExtractEmbeddingVector(const std::string& json, std::array<float, kEmbeddingDim>& out) {
+    size_t pos = json.find("\"embedding\":[");
+    if (pos == std::string::npos) return false;
+    pos += std::string("\"embedding\":[").size();
+    size_t end = json.find(']', pos);
+    if (end == std::string::npos) return false;
+
+    std::string arr = json.substr(pos, end - pos);
+    size_t idx = 0;
+    size_t start = 0;
+    while (start < arr.size() && idx < kEmbeddingDim) {
+        size_t comma = arr.find(',', start);
+        std::string tok = (comma == std::string::npos) ? arr.substr(start) : arr.substr(start, comma - start);
+        try {
+            out[idx++] = std::stof(tok);
+        } catch (...) {
+            return false;
+        }
+        if (comma == std::string::npos) break;
+        start = comma + 1;
+    }
+    return idx == kEmbeddingDim;
+}
+
+bool LoadCanonicalIntents(std::vector<CanonicalIntent>& out) {
+    std::ifstream f(EmbeddingsDataPath(), std::ios::binary);
+    if (!f) return false;
+
+    uint32_t count = 0;
+    f.read(reinterpret_cast<char*>(&count), sizeof(count));
+    if (!f) return false;
+
+    out.clear();
+    out.reserve(count);
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t actionCode = 0;
+        f.read(reinterpret_cast<char*>(&actionCode), sizeof(actionCode));
+
+        auto readString = [&](std::string& s) {
+            uint32_t len = 0;
+            f.read(reinterpret_cast<char*>(&len), sizeof(len));
+            s.resize(len);
+            if (len > 0) f.read(s.data(), len);
+        };
+
+        CanonicalIntent intent;
+        intent.action = (actionCode == 0) ? Action::Get
+                       : (actionCode == 1) ? Action::Set
+                       : (actionCode == 2) ? Action::List
+                       : (actionCode == 3) ? Action::Reset
+                                            : Action::Unknown;
+        readString(intent.setting);
+        readString(intent.value);
+        f.read(reinterpret_cast<char*>(intent.embedding.data()), kEmbeddingDim * sizeof(float));
+        if (!f) return false;
+        out.push_back(std::move(intent));
+    }
+    return true;
+}
+
+float CosineSimilarity(const std::array<float, kEmbeddingDim>& a, const std::array<float, kEmbeddingDim>& b) {
+    double dot = 0, na = 0, nb = 0;
+    for (int i = 0; i < kEmbeddingDim; ++i) {
+        dot += static_cast<double>(a[i]) * b[i];
+        na += static_cast<double>(a[i]) * a[i];
+        nb += static_cast<double>(b[i]) * b[i];
+    }
+    if (na <= 0.0 || nb <= 0.0) return 0.0f;
+    return static_cast<float>(dot / (std::sqrt(na) * std::sqrt(nb)));
+}
+
+// Handle to the server process, so it can be torn down after use.
+#ifdef _WIN32
+struct ServerHandle {
+    PROCESS_INFORMATION pi{};
+    bool started = false;
+};
+#else
+struct ServerHandle {
+    pid_t pid = -1;
+    bool started = false;
+};
+#endif
+
+bool StartServer(ServerHandle& handle) {
+    std::string exe = ServerPath().string();
+    std::string model = ModelPath().string();
+
+#ifdef _WIN32
+    std::string cmdLine = "\"" + exe + "\" -m \"" + model + "\" --embedding --port " +
+                          std::to_string(kPort) + " --log-disable";
+
+    STARTUPINFOA si{};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+
+    std::vector<char> mutableCmd(cmdLine.begin(), cmdLine.end());
+    mutableCmd.push_back('\0');
+
+    BOOL ok = CreateProcessA(nullptr, mutableCmd.data(), nullptr, nullptr, FALSE,
+                              CREATE_NO_WINDOW, nullptr, nullptr, &si, &handle.pi);
+    handle.started = ok != 0;
+    return handle.started;
+#else
+    pid_t pid = fork();
+    if (pid < 0) return false;
+    if (pid == 0) {
+        execl(exe.c_str(), exe.c_str(), "-m", model.c_str(), "--embedding", "--port",
+              std::to_string(kPort).c_str(), "--log-disable", (char*)nullptr);
+        _exit(127);
+    }
+    handle.pid = pid;
+    handle.started = true;
+    return true;
+#endif
+}
+
+void StopServer(ServerHandle& handle) {
+    if (!handle.started) return;
+#ifdef _WIN32
+    TerminateProcess(handle.pi.hProcess, 0);
+    CloseHandle(handle.pi.hProcess);
+    CloseHandle(handle.pi.hThread);
+#else
+    kill(handle.pid, SIGTERM);
+#endif
+}
+
+bool WaitForServerReady() {
+    std::string healthCmd = "curl -s http://127.0.0.1:" + std::to_string(kPort) + "/health";
+    for (int i = 0; i < 100; ++i) { // up to ~10s
+        std::string resp = RunShell(healthCmd);
+        if (resp.find("\"ok\"") != std::string::npos) return true;
+#ifdef _WIN32
+        Sleep(100);
+#else
+        usleep(100000);
+#endif
+    }
+    return false;
+}
+
+bool GetEmbedding(const std::string& text, std::array<float, kEmbeddingDim>& out) {
+    // Text goes through a temp file, not an inline argument, for the
+    // same reason as the old text-generation fallback: shell quoting
+    // arbitrary user text is fragile. curl reads the JSON body from
+    // @<file> instead.
+    fs::path bodyFile = fs::temp_directory_path() / "langbios_embed_body.json";
+    {
+        std::ofstream f(bodyFile, std::ios::binary | std::ios::trunc);
+        f << "{\"input\":[\"";
+        for (char c : text) {
+            if (c == '"' || c == '\\') f << '\\';
+            if (c == '\n') { f << "\\n"; continue; }
+            f << c;
+        }
+        f << "\"]}";
+    }
+
+    std::string cmd = "curl -s http://127.0.0.1:" + std::to_string(kPort) +
+                       "/v1/embeddings -H \"Content-Type: application/json\" -d @\"" +
+                       bodyFile.string() + "\"";
+    std::string resp = RunShell(cmd);
+
+    std::error_code ec;
+    fs::remove(bodyFile, ec);
+
+    return ExtractEmbeddingVector(resp, out);
+}
+
 } // namespace
 
 bool LlmFallbackAvailable() {
     std::error_code ec;
-    return fs::exists(LlamaCliPath(), ec) && fs::exists(ModelPath(), ec);
+    return fs::exists(ServerPath(), ec) && fs::exists(ModelPath(), ec) &&
+           fs::exists(EmbeddingsDataPath(), ec);
 }
 
 bool LlmFallbackParse(const std::string& text, Command& out) {
     if (!LlmFallbackAvailable()) return false;
 
-    // Prompts go through temp files, not inline command-line arguments:
-    // cmd.exe's quoting rules for _popen() are notoriously fragile for
-    // arbitrary text (embedded quotes, &, %, |), and this sidesteps that
-    // entirely - only the (self-generated, quote-free) file paths need
-    // to go on the command line at all.
-    fs::path tmpDir = fs::temp_directory_path();
-    fs::path sysFile = tmpDir / "langbios_llm_system.txt";
-    fs::path promptFile = tmpDir / "langbios_llm_prompt.txt";
+    std::vector<CanonicalIntent> intents;
+    if (!LoadCanonicalIntents(intents) || intents.empty()) return false;
 
-    {
-        std::ofstream sys(sysFile, std::ios::binary | std::ios::trunc);
-        sys << kSystemPrompt;
-    }
-    {
-        std::ofstream prompt(promptFile, std::ios::binary | std::ios::trunc);
-        prompt << text;
-    }
+    ServerHandle handle;
+    if (!StartServer(handle)) return false;
 
-    std::ostringstream cmd;
-    cmd << "\"" << LlamaCliPath().string() << "\""
-        << " -m \"" << ModelPath().string() << "\""
-        << " -sysf \"" << sysFile.string() << "\""
-        << " -f \"" << promptFile.string() << "\""
-        << " -n 80 --temp 0 --single-turn --simple-io --log-disable"
-#ifdef _WIN32
-        << " 2>NUL";
-#else
-        << " 2>/dev/null";
-#endif
-
-    std::string output = ReadAllStdout(cmd.str());
-
-    std::error_code ec;
-    fs::remove(sysFile, ec);
-    fs::remove(promptFile, ec);
-
-    std::string json;
-    if (!ExtractJsonObject(output, json)) return false;
-
-    std::string action = JsonStringField(json, "action");
-    if (action != "get" && action != "set" && action != "list" && action != "reset") {
-        action = "unknown";
+    bool matched = false;
+    if (WaitForServerReady()) {
+        std::array<float, kEmbeddingDim> queryVec{};
+        if (GetEmbedding(text, queryVec)) {
+            float bestScore = -1.0f;
+            const CanonicalIntent* best = nullptr;
+            for (const auto& intent : intents) {
+                float score = CosineSimilarity(queryVec, intent.embedding);
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = &intent;
+                }
+            }
+            if (best && bestScore >= kSimilarityThreshold) {
+                out.action = best->action;
+                out.setting = best->setting;
+                out.value = best->value;
+                out.rawText = text;
+                matched = true;
+            }
+        }
     }
 
-    out.action = (action == "get")   ? Action::Get
-               : (action == "set")   ? Action::Set
-               : (action == "list")  ? Action::List
-               : (action == "reset") ? Action::Reset
-                                      : Action::Unknown;
-    out.setting = JsonStringField(json, "setting");
-    out.value = JsonStringField(json, "value");
-    out.rawText = text;
-    return true;
+    StopServer(handle);
+    return matched;
 }
 
 } // namespace langbios
