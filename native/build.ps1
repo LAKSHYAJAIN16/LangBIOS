@@ -12,7 +12,7 @@ $out = Join-Path $root "build"
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
 # Platform-agnostic (shared with the Linux build via build.sh).
-$commonSources = @("rule_parser.cpp", "engine.cpp") | ForEach-Object { Join-Path $src $_ }
+$commonSources = @("rule_parser.cpp", "engine.cpp", "llm_fallback.cpp") | ForEach-Object { Join-Path $src $_ }
 
 # Windows-specific: Win32 firmware APIs + WMI/COM.
 $windowsSources = @(
@@ -41,5 +41,22 @@ Write-Host "Building langbios_cli.exe ..."
 & clang++ -std=c++20 @target @defs @includes -o (Join-Path $out "langbios_cli.exe") `
     @commonSources @windowsSources (Join-Path $src "cli.cpp") @libs
 if ($LASTEXITCODE -ne 0) { throw "CLI build failed" }
+
+# Bundled local LLM assets (fetched separately via fetch-llm.ps1, since
+# they're large binaries not committed to git) get copied alongside the
+# built exe so the CLI's llm_fallback can find them at ./llamacpp and
+# ./models relative to itself - same layout the installer packages.
+$vendorLlamacppBin = Join-Path $root "vendor\llamacpp\bin"
+$vendorModels = Join-Path $root "vendor\models"
+if ((Test-Path $vendorLlamacppBin) -and (Test-Path $vendorModels)) {
+    Write-Host "Copying bundled LLM assets into build/ ..."
+    $destBin = Join-Path $out "llamacpp\bin"
+    $destModels = Join-Path $out "models"
+    New-Item -ItemType Directory -Force -Path $destBin, $destModels | Out-Null
+    Copy-Item -Force (Join-Path $vendorLlamacppBin "*") $destBin
+    Copy-Item -Force (Join-Path $vendorModels "*.gguf") $destModels
+} else {
+    Write-Host "No bundled LLM assets found (run native\fetch-llm.ps1 to get them) - CLI will run rule-parser-only."
+}
 
 Write-Host "Build succeeded -> $out"

@@ -9,7 +9,6 @@
 #include <string>
 
 #include "langbios/engine.hpp"
-#include "langbios/rule_parser.hpp"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -19,15 +18,7 @@
 namespace {
 
 void RunOne(const std::string& text) {
-    langbios::Command cmd;
-    langbios::Result result;
-    if (langbios::ParseRule(text, cmd)) {
-        result = langbios::Execute(cmd);
-    } else {
-        result = langbios::Result::Failure(
-            "I didn't understand that. Try things like 'enable secure boot', "
-            "'what's my fan profile', or 'list settings'.");
-    }
+    langbios::Result result = langbios::Interpret(text);
     std::cout << result.message << std::endl;
 }
 
@@ -36,7 +27,9 @@ const char* kBanner =
     "Boot order + Secure Boot/TPM reads work on any UEFI machine (needs "
     "elevation). Other settings need this to be Dell/HP/Lenovo hardware on "
     "Windows, or any hardware whose vendor driver exposes "
-    "/sys/class/firmware-attributes on Linux.\n"
+    "/sys/class/firmware-attributes on Linux. Phrasing the rule parser "
+    "misses falls back to a bundled local model, if present - no API key, "
+    "no network call.\n"
     "Type things like:\n"
     "  enable secure boot\n"
     "  what's my fan profile\n"

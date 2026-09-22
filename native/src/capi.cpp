@@ -3,7 +3,6 @@
 // that Result/Command are UTF-8 std::string throughout.
 #include "langbios/capi.h"
 #include "langbios/engine.hpp"
-#include "langbios/rule_parser.hpp"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -37,16 +36,7 @@ std::string JsonEscape(const std::string& in) {
 
 int langbios_execute(const char* utf8Text, char* outBuf, int outBufLen) {
     std::string text = utf8Text ? utf8Text : "";
-
-    langbios::Command cmd;
-    langbios::Result result;
-    if (langbios::ParseRule(text, cmd)) {
-        result = langbios::Execute(cmd);
-    } else {
-        result = langbios::Result::Failure(
-            "I didn't understand that. Try things like 'enable secure boot', "
-            "'what's my fan profile', or 'list settings'.");
-    }
+    langbios::Result result = langbios::Interpret(text);
 
     std::string message = JsonEscape(result.message);
     std::string value = JsonEscape(result.value);

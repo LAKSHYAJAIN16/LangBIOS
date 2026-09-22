@@ -39,6 +39,14 @@ WizardStyle=modern
 
 [Files]
 Source: "..\native\build\langbios_cli.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
+; Bundled local LLM (llama.cpp + a small quantized model) - lets the
+; installed CLI understand phrasing the rule parser misses with zero
+; setup: no Ollama, no API key, no network call. Optional at build
+; time: if native/vendor/ wasn't populated (run native/fetch-llm.ps1
+; first), these lines simply match nothing and the installer still
+; builds fine with the rule-parser-only CLI.
+Source: "..\native\vendor\llamacpp\bin\*"; DestDir: "{app}\llamacpp\bin"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+Source: "..\native\vendor\models\*.gguf"; DestDir: "{app}\models"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\LangBIOS"; Filename: "{app}\{#MyAppExeName}"

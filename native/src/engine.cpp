@@ -1,4 +1,5 @@
 #include "langbios/engine.hpp"
+#include "langbios/llm_fallback.hpp"
 #include "langbios/tpm.hpp"
 #include "langbios/uefi_vars.hpp"
 #include "langbios/vendor_bios.hpp"
@@ -139,6 +140,28 @@ Result Execute(const Command& cmd) {
                 "I didn't understand that. Try things like 'enable secure boot', "
                 "'what's my fan profile', or 'list settings'.");
     }
+}
+
+Result Interpret(const std::string& text) {
+    Command cmd;
+    if (ParseRule(text, cmd)) {
+        return Execute(cmd);
+    }
+
+    Command llmCmd;
+    if (LlmFallbackParse(text, llmCmd)) {
+        if (llmCmd.action == Action::Unknown) {
+            return Result::Failure(
+                "Even the bundled local model couldn't confidently map that to "
+                "a BIOS setting. Try being more specific, e.g. 'set fan profile "
+                "to silent'.");
+        }
+        return Execute(llmCmd);
+    }
+
+    return Result::Failure(
+        "I didn't understand that. Try things like 'enable secure boot', "
+        "'what's my fan profile', or 'list settings'.");
 }
 
 } // namespace langbios
