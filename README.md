@@ -20,7 +20,26 @@ langbios> list settings
 
 This talks to **real firmware**: there is no simulated/mock mode. Reads are safe everywhere; writes change real NVRAM and need elevation (see below). Check the capability table further down for what's actually possible on *your* hardware before running a `set`/`enable`/`disable` command.
 
-## Quick start
+## Quick start (Windows)
+
+Build and run the installer (`installer/LangBIOS.iss`, requires [Inno Setup](https://jrsoftware.org/isinfo.php)):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File native/build.ps1
+& "<Inno Setup install dir>\ISCC.exe" installer\LangBIOS.iss
+installer\dist\LangBIOS-Setup.exe
+```
+
+That installs `langbios.exe` to `%LOCALAPPDATA%\Programs\LangBIOS` and adds it to your PATH (no admin needed to install). Open a **new** terminal and just run:
+
+```powershell
+langbios "list settings"
+langbios                          # interactive REPL
+```
+
+No Python required for this path. See "Building the native layer" below for Linux, or to build the native pieces manually.
+
+## Quick start (from source, any platform)
 
 ```bash
 git clone https://github.com/LAKSHYAJAIN16/LangBIOS.git

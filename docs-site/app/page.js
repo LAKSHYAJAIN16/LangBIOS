@@ -60,20 +60,31 @@ export default function Page() {
         <section id="build">
           <h2>Build the native layer</h2>
 
-          <h3>Windows</h3>
+          <h3>Windows: installer (recommended)</h3>
+          <p>
+            Builds a real installer wizard (<a href="https://jrsoftware.org/isinfo.php">Inno Setup</a> required)
+            that puts <code>langbios.exe</code> on your PATH. No Python needed to use it this way.
+          </p>
+          <pre>
+            <code>{`powershell -ExecutionPolicy Bypass -File native/build.ps1\n& "<Inno Setup install dir>\\ISCC.exe" installer\\LangBIOS.iss\ninstaller\\dist\\LangBIOS-Setup.exe`}</code>
+          </pre>
+          <p>
+            Installs per-user to <code>%LOCALAPPDATA%\Programs\LangBIOS</code> (no admin needed to install) and
+            adds it to your PATH. Open a new terminal and run <code>langbios &quot;list settings&quot;</code>{" "}
+            directly. Ships a real uninstaller too.
+          </p>
+
+          <h3>Windows: build manually</h3>
           <p>Requires a C++20 compiler (clang++/LLVM or MSVC) with the Windows SDK.</p>
           <pre>
             <code>powershell -ExecutionPolicy Bypass -File native/build.ps1</code>
           </pre>
           <p>
             Produces <code>native/build/langbios_native.dll</code> and{" "}
-            <code>native/build/langbios_cli.exe</code>.
+            <code>native/build/langbios_cli.exe</code>, both built for x86_64 by default (works via emulation on
+            ARM64 Windows too). Pass <code>-HostArch</code> to build for your machine&apos;s real architecture
+            instead.
           </p>
-          <div className="note">
-            The DLL is cross-compiled to match your system Python&apos;s architecture: ctypes requires an exact
-            match. If your Python isn&apos;t x86_64, edit the <code>--target</code> flag near the top of{" "}
-            <code>build.ps1</code>. The standalone CLI always targets your host&apos;s real architecture.
-          </div>
 
           <h3>Linux</h3>
           <p>Requires g++ or clang++ with C++20 support.</p>
@@ -94,17 +105,22 @@ export default function Page() {
 
         <section id="run">
           <h2>Run it</h2>
+          <p>If you used the Windows installer, <code>langbios</code> is already on your PATH:</p>
           <pre>
-            <code>{`# One-shot\npython -m langbios.cli "list settings"\npython -m langbios.cli "enable secure boot"\n\n# Interactive REPL\npython -m langbios.cli`}</code>
+            <code>{`langbios "list settings"\nlangbios                          # interactive REPL`}</code>
+          </pre>
+          <p>Building from source instead, use the standalone native binary directly:</p>
+          <pre>
+            <code>{`# Windows\nnative\\build\\langbios_cli.exe "list settings"\n\n# Linux\n./native/build/langbios_cli "list settings"`}</code>
+          </pre>
+          <p>Or through Python, which adds the local-LLM fallback for phrasing the rule parser misses:</p>
+          <pre>
+            <code>{`python -m langbios.cli "list settings"\npython -m langbios.cli            # interactive REPL`}</code>
           </pre>
           <p>
             Inside the REPL, type <code>exit</code> or <code>quit</code> to leave. Use <code>--no-llm</code> to
             disable the local-LLM fallback and only use the fast rule-based parser.
           </p>
-          <p>You can also use the standalone native binary directly, without Python:</p>
-          <pre>
-            <code>{`# Windows\nnative\\build\\langbios_cli.exe "list settings"\n\n# Linux\n./native/build/langbios_cli "list settings"`}</code>
-          </pre>
         </section>
 
         <section id="examples">
