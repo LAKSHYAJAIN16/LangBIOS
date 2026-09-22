@@ -26,7 +26,13 @@ namespace {
 
 constexpr int kEmbeddingDim = 384; // bge-small-en-v1.5
 constexpr int kPort = 8931;
-constexpr float kSimilarityThreshold = 0.65f; // see embed-intents.ps1 validation notes
+// Empirically measured against bge-small-en-v1.5: genuine paraphrases of
+// canonical intents ("can you turn secure boot on", "please mute") score
+// 0.77-0.97, while greetings/chitchat/noise ("hi", "hey", "thanks") score
+// 0.61-0.72 against their nearest (wrong) canonical intent - short unrelated
+// text still gets a surprisingly high similarity floor with this model. 0.75
+// sits in the gap between those two clusters.
+constexpr float kSimilarityThreshold = 0.75f;
 
 struct CanonicalIntent {
     Action action;

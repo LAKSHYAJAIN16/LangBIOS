@@ -164,9 +164,7 @@ Result Execute(const Command& cmd) {
         }
 
         default:
-            return Result::Failure(
-                "I didn't understand that. Try things like 'enable secure boot', "
-                "'what's my fan profile', or 'list settings'.");
+            return Result::Failure("(intent not detected)");
     }
 }
 
@@ -185,9 +183,7 @@ Result Interpret(const std::string& text) {
         return Execute(llmCmd);
     }
 
-    return Result::Failure(
-        "I didn't understand that. Try things like 'enable secure boot', "
-        "'what's my fan profile', or 'list settings'.");
+    return Result::Failure("(intent not detected)");
 }
 
 } // namespace langbios
