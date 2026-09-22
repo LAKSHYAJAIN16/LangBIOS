@@ -1,3 +1,5 @@
+import Sidebar from "./Sidebar";
+
 const nav = [
   ["overview", "Overview"],
   ["install", "Install"],
@@ -14,21 +16,13 @@ const nav = [
 export default function Page() {
   return (
     <div className="layout">
-      <nav className="sidebar">
-        <div className="brand">LangBIOS</div>
-        <ul className="navList">
-          {nav.map(([id, label]) => (
-            <li key={id}>
-              <a href={`#${id}`}>{label}</a>
-            </li>
-          ))}
-        </ul>
-        <a className="githubLink" href="https://github.com/LAKSHYAJAIN16/LangBIOS">
-          GitHub &#8599;
-        </a>
-      </nav>
+      <a href="#main-content" className="skipLink">
+        Skip to content
+      </a>
 
-      <main className="content">
+      <Sidebar nav={nav} />
+
+      <main className="content" id="main-content">
         <h1>LangBIOS</h1>
         <p className="lede">
           Talk to your computer&apos;s BIOS/UEFI settings in plain English. Talks to real firmware, not a simulation.
@@ -127,13 +121,14 @@ export default function Page() {
 
         <section id="capabilities">
           <h2>What&apos;s really possible on your hardware</h2>
+          <div className="tableWrap">
           <table>
             <thead>
               <tr>
-                <th>Setting</th>
-                <th>Mechanism</th>
-                <th>Writable?</th>
-                <th>Works on</th>
+                <th scope="col">Setting</th>
+                <th scope="col">Mechanism</th>
+                <th scope="col">Writable?</th>
+                <th scope="col">Works on</th>
               </tr>
             </thead>
             <tbody>
@@ -172,6 +167,7 @@ export default function Page() {
               </tr>
             </tbody>
           </table>
+          </div>
           <p>
             On anything else, LangBIOS reports &quot;no vendor BIOS management interface available&quot; rather
             than pretending a setting changed.

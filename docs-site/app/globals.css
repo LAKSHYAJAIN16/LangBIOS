@@ -21,9 +21,6 @@ a {
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
-a:hover {
-  text-decoration: none;
-}
 
 .layout {
   display: flex;
@@ -58,13 +55,21 @@ a:hover {
 
 .navList a {
   display: block;
-  padding: 5px 0;
+  padding: 5px 8px;
+  margin: 0 -8px;
+  border-radius: 4px;
   font-size: 0.92rem;
   color: #444;
+  text-decoration: none;
 }
 .navList a:hover {
   color: #000;
   text-decoration: underline;
+}
+.navList a.active {
+  color: #000;
+  font-weight: 700;
+  background: #f2f2f2;
 }
 
 .githubLink {
@@ -74,11 +79,11 @@ a:hover {
   border: 1px solid #000;
   padding: 6px 10px;
   border-radius: 4px;
+  text-decoration: none;
 }
 .githubLink:hover {
   background: #000;
   color: #fff;
-  text-decoration: none;
 }
 
 .content {
@@ -161,11 +166,17 @@ pre code {
   padding: 0;
 }
 
+.tableWrap {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 12px 0;
+}
+
 table {
   border-collapse: collapse;
-  margin: 12px 0;
   font-size: 0.9rem;
   width: 100%;
+  min-width: 560px;
 }
 th, td {
   border: 1px solid #000;
@@ -183,6 +194,21 @@ th {
   border-radius: 4px;
   margin: 14px 0;
   max-width: 68ch;
+}
+
+.skipLink {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: #000;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 0 0 4px 0;
+  text-decoration: none;
+}
+.skipLink:focus {
+  left: 0;
 }
 
 ::selection {
