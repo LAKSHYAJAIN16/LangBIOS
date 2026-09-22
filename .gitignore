@@ -7,3 +7,7 @@ venv/
 data/bios_state.local.json
 native/build/
 installer/dist/
+
+# Bundled local LLM (llama.cpp binaries + GGUF model weights): large
+# binary blobs, fetched by native/fetch-llm.ps1, never committed.
+native/vendor/
