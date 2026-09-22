@@ -23,18 +23,15 @@ void RunOne(const std::string& text) {
 }
 
 const char* kBanner =
-    "LangBIOS (native) - talks to REAL firmware, not a mock.\n"
-    "Boot order + Secure Boot/TPM reads work on any UEFI machine (needs "
-    "elevation). Other settings need this to be Dell/HP/Lenovo hardware on "
-    "Windows, or any hardware whose vendor driver exposes "
-    "/sys/class/firmware-attributes on Linux. Phrasing the rule parser "
-    "misses falls back to a bundled local model, if present - no API key, "
-    "no network call.\n"
-    "Type things like:\n"
-    "  enable secure boot\n"
-    "  what's my fan profile\n"
-    "  list settings\n"
-    "Type 'exit' or 'quit' to leave.\n";
+    "\n"
+    "██╗      █████╗ ███╗   ██╗ ██████╗ ██████╗ ██╗ ██████╗ ███████╗\n"
+    "██║     ██╔══██╗████╗  ██║██╔════╝ ██╔══██╗██║██╔═══██╗██╔════╝\n"
+    "██║     ███████║██╔██╗ ██║██║  ███╗██████╔╝██║██║   ██║███████╗\n"
+    "██║     ██╔══██║██║╚██╗██║██║   ██║██╔══██╗██║██║   ██║╚════██║\n"
+    "███████╗██║  ██║██║ ╚████║╚██████╔╝██████╔╝██║╚██████╔╝███████║\n"
+    "╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝ ╚══════╝\n"
+    "\n"
+    "Type 'exit' or 'quit' to leave.\n\n";
 
 } // namespace
 
