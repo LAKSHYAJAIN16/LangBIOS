@@ -1,8 +1,8 @@
-import { Abyssinica_SIL } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const abyssinicaSIL = Abyssinica_SIL({
-  weight: "400",
+const inter = Inter({
+  weight: ["400", "500", "700"],
   subsets: ["latin"],
   variable: "--font-body",
 });
@@ -14,7 +14,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={abyssinicaSIL.variable}>
+    <html lang="en" className={inter.variable}>
       <body>{children}</body>
     </html>
   );
