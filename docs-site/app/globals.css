@@ -22,6 +22,15 @@ a {
   text-underline-offset: 2px;
 }
 
+/* Abyssinica SIL ships one weight (400) on Google Fonts - forcing
+   font-weight anywhere above that fakes a bold by distorting the
+   glyphs (a real typographic defect, not a style choice). Emphasis
+   throughout this page comes from underline/size/background instead. */
+strong {
+  font-weight: 400;
+  text-decoration: underline;
+}
+
 .layout {
   display: flex;
   min-height: 100vh;
@@ -40,7 +49,6 @@ a {
 }
 
 .brand {
-  font-family: var(--font-brand);
   font-weight: 400;
   font-size: 1.15rem;
   letter-spacing: -0.01em;
@@ -69,7 +77,7 @@ a {
 }
 .navList a.active {
   color: #000;
-  font-weight: 700;
+  text-decoration: underline;
   background: #f2f2f2;
 }
 
@@ -94,7 +102,6 @@ a {
 }
 
 .content h1 {
-  font-family: var(--font-brand);
   font-weight: 400;
   font-size: 2rem;
   letter-spacing: -0.01em;
@@ -118,15 +125,19 @@ a {
 }
 
 .content h2 {
-  font-size: 1.3rem;
+  font-weight: 400;
+  font-size: 1.45rem;
   margin-bottom: 12px;
   letter-spacing: -0.01em;
 }
 
 .content h3 {
-  font-size: 1.05rem;
+  font-weight: 400;
+  font-size: 1.15rem;
   margin-top: 22px;
   margin-bottom: 8px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .content p, .content li {
@@ -188,7 +199,8 @@ th, td {
   vertical-align: top;
 }
 th {
-  font-weight: 700;
+  font-weight: 400;
+  background: #f2f2f2;
 }
 
 .note {
