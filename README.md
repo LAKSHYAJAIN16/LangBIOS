@@ -15,8 +15,8 @@ langbios> list settings
 
 ## How it's built
 
-- `native/` (C++): the real engine. A rule-based parser, a dispatcher that routes each setting to the right real backend, platform-specific firmware access (`native/src/windows/`, `native/src/linux/`), and a bundled local LLM fallback (`native/src/llm_fallback.cpp`) for phrasing the rule parser misses. Compiles to `langbios_native.{dll,so}` (loaded by Python) and a standalone `langbios_cli` binary.
-- `langbios/` (Python): `native_backend.py` is a `ctypes` bridge into the compiled library; `llm_parser.py` is an *additional* optional local-LLM fallback (via Ollama, for a bigger/different model) layered on top; `cli.py` ties it together into a REPL.
+- `native/` (C++): the real engine. A rule-based parser, a dispatcher that routes each setting to the right real backend, platform-specific firmware access (`native/src/windows/`, `native/src/linux/`), and a bundled local semantic-matching fallback (`native/src/llm_fallback.cpp`) for phrasing the rule parser misses. Compiles to `langbios_native.{dll,so}` (loaded by Python) and a standalone `langbios_cli` binary.
+- `langbios/` (Python): `native_backend.py` is a `ctypes` bridge into the compiled library; `llm_parser.py` is an *additional* optional local-LLM fallback (via Ollama, for genuinely open-ended phrasing a fixed intent set can't cover) layered on top; `cli.py` ties it together into a REPL.
 
 This talks to **real firmware**: there is no simulated/mock mode. Reads are safe everywhere; writes change real NVRAM and need elevation (see below). Check the capability table further down for what's actually possible on *your* hardware before running a `set`/`enable`/`disable` command.
 
@@ -25,7 +25,7 @@ This talks to **real firmware**: there is no simulated/mock mode. Reads are safe
 Build and run the installer (`installer/LangBIOS.iss`, requires [Inno Setup](https://jrsoftware.org/isinfo.php)):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File native/fetch-llm.ps1   # bundled local LLM, ~500MB, optional but recommended
+powershell -ExecutionPolicy Bypass -File native/fetch-llm.ps1   # bundled local NL fallback, ~76MB, optional but recommended
 powershell -ExecutionPolicy Bypass -File native/build.ps1
 & "<Inno Setup install dir>\ISCC.exe" installer\LangBIOS.iss
 installer\dist\LangBIOS-Setup.exe
@@ -38,7 +38,7 @@ langbios "list settings"
 langbios                          # interactive REPL
 ```
 
-No Python required for this path, and no API key or Ollama install either: phrasing the rule parser doesn't recognize falls back to a small local model (Qwen2.5-0.5B-Instruct, via bundled llama.cpp) baked right into the installer, running fully offline. See "Building the native layer" below for Linux, or to build the native pieces manually.
+No Python required for this path, and no API key or Ollama install either: phrasing the rule parser doesn't recognize falls back to a small bundled semantic-matching model (see "How the local fallback works" below), running fully offline, adding only ~46MB to the installer. See "Building the native layer" below for Linux, or to build the native pieces manually.
 
 ## Quick start (from source, any platform)
 
@@ -63,6 +63,16 @@ There's no way to "just write C" that talks to firmware directly: user-mode code
 4. For **vendor settings** (Dell/HP/Lenovo): the OEM ships a **kernel-mode driver** that triggers an **SMI (System Management Interrupt)**, a hardware trap that pauses the OS and runs firmware code in a special CPU mode (SMM) to actually touch NVRAM. Only OEMs that built this exist; there's no way around that from software, by anyone.
 
 Python never does this directly. `langbios/native_backend.py` is a `ctypes` bridge into the compiled native library, which is what actually makes the privileged calls.
+
+## How the local fallback works
+
+Still a real small language model doing real neural inference, not string matching - `bge-small-en-v1.5`, a 33M-parameter transformer, genuinely understands phrasing that was never in its examples (`"crank up the fans"` correctly resolves `fan_profile=performance` by meaning, not keyword overlap). The difference is *what kind* of model: mapping one sentence onto one of a few dozen known settings/actions is a **classification** problem, not open-ended text generation, so instead of a generative LLM (which needs a large vocabulary-sized output layer just to be able to write text at all), the fallback is an **encoder** model - it turns text into a vector capturing its meaning, and the nearest known example wins by cosine similarity:
+
+1. `native/data/canonical_intents.json` has ~94 curated example phrases covering every setting/action (e.g. `"crank up the fans"` → `set fan_profile=performance`).
+2. `native/embed-intents.ps1` embeds all of them **once, offline**, using the bundled model, and writes the vectors to `native/data/canonical_embeddings.bin` (~143KB, committed to git - small enough, unlike the model itself).
+3. At runtime, `native/src/llm_fallback.cpp` starts `llama-server.exe` in `--embedding` mode (bundled, ~76MB total with `bge-small-en-v1.5`), embeds only the user's input, and compares it against the precomputed vectors. Below a similarity threshold, it reports "didn't understand" instead of guessing.
+
+This is deterministic and can't hallucinate an invalid setting the way a generative model could - it can only ever return one of the known canonical intents. It's also ~90% smaller than the generative approach this project shipped with initially (a 490MB Qwen2.5-0.5B-Instruct model), while being measurably *more* reliable on this project's own test phrases (see `native/fetch-llm.ps1` for the head-to-head notes).
 
 ## What's really possible, depending on your hardware
 

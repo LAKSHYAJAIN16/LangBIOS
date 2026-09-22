@@ -66,7 +66,7 @@ export default function Page() {
             that puts <code>langbios.exe</code> on your PATH. No Python needed to use it this way.
           </p>
           <pre>
-            <code>{`powershell -ExecutionPolicy Bypass -File native/fetch-llm.ps1   # bundled local LLM, ~500MB, optional\npowershell -ExecutionPolicy Bypass -File native/build.ps1\n& "<Inno Setup install dir>\\ISCC.exe" installer\\LangBIOS.iss\ninstaller\\dist\\LangBIOS-Setup.exe`}</code>
+            <code>{`powershell -ExecutionPolicy Bypass -File native/fetch-llm.ps1   # bundled local fallback, ~76MB, optional\npowershell -ExecutionPolicy Bypass -File native/build.ps1\n& "<Inno Setup install dir>\\ISCC.exe" installer\\LangBIOS.iss\ninstaller\\dist\\LangBIOS-Setup.exe`}</code>
           </pre>
           <p>
             Installs per-user to <code>%LOCALAPPDATA%\Programs\LangBIOS</code> (no admin needed to install) and
@@ -74,10 +74,13 @@ export default function Page() {
             directly. Ships a real uninstaller too.
           </p>
           <div className="note">
-            Running <code>fetch-llm.ps1</code> first bakes a small local model (Qwen2.5-0.5B-Instruct via
-            bundled llama.cpp, ~500MB) into the installer, so phrasing the rule parser misses still gets
-            handled - fully offline, no API key, no separate Ollama install. Skip it and the installer still
-            builds fine with the rule-parser-only CLI.
+            Running <code>fetch-llm.ps1</code> first adds a small local semantic-matching model
+            (<code>bge-small-en-v1.5</code>, ~76MB total with bundled llama.cpp) to the installer, so phrasing
+            the rule parser misses still gets handled, fully offline, no API key, no separate Ollama install.
+            It embeds your text and matches it against ~94 precomputed canonical examples by similarity - a
+            classification approach, not generation, so it can&apos;t hallucinate an invalid setting the way an
+            earlier version of this project (which bundled a 490MB generative model) could. Skip it and the
+            installer still builds fine with the rule-parser-only CLI.
           </div>
 
           <h3>Windows: build manually</h3>
