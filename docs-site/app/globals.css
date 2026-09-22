@@ -40,9 +40,10 @@ a {
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: -0.02em;
+  font-family: var(--font-brand);
+  font-weight: 400;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
   margin-bottom: 24px;
 }
 
@@ -93,8 +94,10 @@ a {
 }
 
 .content h1 {
-  font-size: 1.9rem;
-  letter-spacing: -0.02em;
+  font-family: var(--font-brand);
+  font-weight: 400;
+  font-size: 2rem;
+  letter-spacing: -0.01em;
   margin-bottom: 6px;
 }
 
