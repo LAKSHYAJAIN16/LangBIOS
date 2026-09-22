@@ -164,7 +164,7 @@ Result Execute(const Command& cmd) {
         }
 
         default:
-            return Result::Failure("(intent not detected)");
+            return Result::Failure("(no LLM response)");
     }
 }
 
@@ -183,7 +183,7 @@ Result Interpret(const std::string& text) {
         return Execute(llmCmd);
     }
 
-    return Result::Failure("(intent not detected)");
+    return Result::Failure("(no LLM response)");
 }
 
 } // namespace langbios
