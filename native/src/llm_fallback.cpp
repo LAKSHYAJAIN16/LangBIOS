@@ -286,11 +286,24 @@ bool LlmFallbackParse(const std::string& text, Command& out) {
                 }
             }
             if (best && bestScore >= kSimilarityThreshold) {
-                out.action = best->action;
-                out.setting = best->setting;
-                out.value = best->value;
-                out.rawText = text;
-                matched = true;
+                // List/Reset touch every setting at once - the highest
+                // blast radius of any action - and a single bare word
+                // ("settings", "status") tends to score deceptively high
+                // against canonical examples that happen to share that
+                // word ("list settings", "status report") without the
+                // user actually asking for everything. Require at least
+                // two words before trusting a whole-state match; a real
+                // "list settings"/"show everything" request already has
+                // that naturally.
+                bool isBroadAction = best->action == Action::List || best->action == Action::Reset;
+                bool isMultiWord = text.find(' ') != std::string::npos;
+                if (!isBroadAction || isMultiWord) {
+                    out.action = best->action;
+                    out.setting = best->setting;
+                    out.value = best->value;
+                    out.rawText = text;
+                    matched = true;
+                }
             }
         }
     }

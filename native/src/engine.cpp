@@ -86,24 +86,36 @@ Result SetVendorSetting(const std::string& setting, const std::string& value) {
 }
 
 Result ListAll() {
+    // Each Get*() message is written to stand alone for a single `get
+    // <setting>` query, not to be told apart inside a wall of text - so
+    // list settings prefixes every line with its setting name. Without
+    // this, a privilege error for secure_boot and one for boot_order
+    // are visually identical and there's no way to tell which is which.
+    auto line = [](const std::string& name, const Result& r) {
+        // A few backends' own messages already lead with "name = ..."
+        // (volume/mute) - don't double up on those.
+        if (r.message.rfind(name + " =", 0) == 0) return r.message + "\n";
+        return name + ": " + r.message + "\n";
+    };
+
     std::stringstream ss;
-    ss << GetSecureBootState().message << "\n";
-    ss << GetTpmState().message << "\n";
-    ss << GetBootOrder().message << "\n";
-    ss << GetVolume().message << "\n";
-    ss << GetMute().message << "\n";
+    ss << line("secure_boot", GetSecureBootState());
+    ss << line("tpm", GetTpmState());
+    ss << line("boot_order", GetBootOrder());
+    ss << line("volume", GetVolume());
+    ss << line("mute", GetMute());
 
     Vendor v = DetectVendor();
     auto backend = CreateVendorBackend(v);
     std::vector<BiosAttribute> attrs;
     Result r = backend->Enumerate(attrs);
     if (r.ok) {
-        ss << "Real " << VendorName(v) << " BIOS attributes (" << attrs.size() << "):\n";
+        ss << "\n" << VendorName(v) << " BIOS attributes (" << attrs.size() << "):\n";
         for (const auto& a : attrs) {
-            ss << "  " << a.name << " = " << a.currentValue << "\n";
+            ss << "  " << a.name << ": " << a.currentValue << "\n";
         }
     } else {
-        ss << r.message << "\n";
+        ss << "\n" << r.message << "\n";
     }
     return Result::Success(ss.str());
 }

@@ -63,7 +63,12 @@ std::string FindSetting(const std::string& t) {
 bool ParseRule(const std::string& text, Command& out) {
     std::string t = ToLower(text);
 
-    if (std::regex_search(t, kListWords) || t == "list" || t == "settings" || t == "status") {
+    // Only fires on an unambiguous, explicit request for everything -
+    // bare "settings" or "status" alone used to trigger this too, which
+    // meant any input that happened to be just that one word (not
+    // necessarily meaning "list everything") dumped the full state
+    // instead of being treated as unclear.
+    if (std::regex_search(t, kListWords) || t == "list") {
         out = Command{Action::List, "", "", text};
         return true;
     }
