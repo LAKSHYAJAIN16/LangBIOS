@@ -66,13 +66,19 @@ export default function Page() {
             that puts <code>langbios.exe</code> on your PATH. No Python needed to use it this way.
           </p>
           <pre>
-            <code>{`powershell -ExecutionPolicy Bypass -File native/build.ps1\n& "<Inno Setup install dir>\\ISCC.exe" installer\\LangBIOS.iss\ninstaller\\dist\\LangBIOS-Setup.exe`}</code>
+            <code>{`powershell -ExecutionPolicy Bypass -File native/fetch-llm.ps1   # bundled local LLM, ~500MB, optional\npowershell -ExecutionPolicy Bypass -File native/build.ps1\n& "<Inno Setup install dir>\\ISCC.exe" installer\\LangBIOS.iss\ninstaller\\dist\\LangBIOS-Setup.exe`}</code>
           </pre>
           <p>
             Installs per-user to <code>%LOCALAPPDATA%\Programs\LangBIOS</code> (no admin needed to install) and
             adds it to your PATH. Open a new terminal and run <code>langbios &quot;list settings&quot;</code>{" "}
             directly. Ships a real uninstaller too.
           </p>
+          <div className="note">
+            Running <code>fetch-llm.ps1</code> first bakes a small local model (Qwen2.5-0.5B-Instruct via
+            bundled llama.cpp, ~500MB) into the installer, so phrasing the rule parser misses still gets
+            handled - fully offline, no API key, no separate Ollama install. Skip it and the installer still
+            builds fine with the rule-parser-only CLI.
+          </div>
 
           <h3>Windows: build manually</h3>
           <p>Requires a C++20 compiler (clang++/LLVM or MSVC) with the Windows SDK.</p>

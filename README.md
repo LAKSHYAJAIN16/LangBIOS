@@ -15,8 +15,8 @@ langbios> list settings
 
 ## How it's built
 
-- `native/` (C++): the real engine. A rule-based parser, a dispatcher that routes each setting to the right real backend, and platform-specific firmware access (`native/src/windows/`, `native/src/linux/`). Compiles to `langbios_native.{dll,so}` (loaded by Python) and a standalone `langbios_cli` binary.
-- `langbios/` (Python): `native_backend.py` is a `ctypes` bridge into the compiled library; `llm_parser.py` is an optional local-LLM fallback (via Ollama) for phrasing the native rule parser doesn't recognize; `cli.py` ties it together into a REPL.
+- `native/` (C++): the real engine. A rule-based parser, a dispatcher that routes each setting to the right real backend, platform-specific firmware access (`native/src/windows/`, `native/src/linux/`), and a bundled local LLM fallback (`native/src/llm_fallback.cpp`) for phrasing the rule parser misses. Compiles to `langbios_native.{dll,so}` (loaded by Python) and a standalone `langbios_cli` binary.
+- `langbios/` (Python): `native_backend.py` is a `ctypes` bridge into the compiled library; `llm_parser.py` is an *additional* optional local-LLM fallback (via Ollama, for a bigger/different model) layered on top; `cli.py` ties it together into a REPL.
 
 This talks to **real firmware**: there is no simulated/mock mode. Reads are safe everywhere; writes change real NVRAM and need elevation (see below). Check the capability table further down for what's actually possible on *your* hardware before running a `set`/`enable`/`disable` command.
 
@@ -25,6 +25,7 @@ This talks to **real firmware**: there is no simulated/mock mode. Reads are safe
 Build and run the installer (`installer/LangBIOS.iss`, requires [Inno Setup](https://jrsoftware.org/isinfo.php)):
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File native/fetch-llm.ps1   # bundled local LLM, ~500MB, optional but recommended
 powershell -ExecutionPolicy Bypass -File native/build.ps1
 & "<Inno Setup install dir>\ISCC.exe" installer\LangBIOS.iss
 installer\dist\LangBIOS-Setup.exe
@@ -37,7 +38,7 @@ langbios "list settings"
 langbios                          # interactive REPL
 ```
 
-No Python required for this path. See "Building the native layer" below for Linux, or to build the native pieces manually.
+No Python required for this path, and no API key or Ollama install either: phrasing the rule parser doesn't recognize falls back to a small local model (Qwen2.5-0.5B-Instruct, via bundled llama.cpp) baked right into the installer, running fully offline. See "Building the native layer" below for Linux, or to build the native pieces manually.
 
 ## Quick start (from source, any platform)
 
