@@ -14,9 +14,9 @@ mkdir -p "$OUT"
 
 CXX="${CXX:-g++}"
 
-COMMON_SOURCES=("$SRC/rule_parser.cpp" "$SRC/engine.cpp")
+COMMON_SOURCES=("$SRC/rule_parser.cpp" "$SRC/engine.cpp" "$SRC/llm_fallback.cpp")
 LINUX_SOURCES=(
-    "$LNX/efivarfs.cpp" "$LNX/uefi_vars.cpp" "$LNX/tpm.cpp" "$LNX/vendor_backend.cpp"
+    "$LNX/efivarfs.cpp" "$LNX/uefi_vars.cpp" "$LNX/tpm.cpp" "$LNX/vendor_backend.cpp" "$LNX/audio.cpp"
 )
 
 echo "Building langbios_native.so ..."

@@ -32,7 +32,8 @@ def _system_prompt() -> str:
         for name, spec in SETTINGS.items()
     )
     return f"""You translate a user's natural-language request about their computer's
-BIOS/UEFI settings into a single strict JSON object, and nothing else.
+BIOS/UEFI firmware settings, or the real OS-level hardware settings listed
+below, into a single strict JSON object, and nothing else.
 
 Available settings:
 {setting_lines}
@@ -45,7 +46,7 @@ Rules:
 - action "reset" means the user wants factory defaults restored.
 - action "get" means the user is asking the current value of one setting.
 - action "set" means the user wants to change one setting; include "value".
-- For bool settings use JSON true/false. For enum settings use one of the listed choices.
+- For bool settings use JSON true/false. For enum settings use one of the listed choices. For int settings use a plain number within the stated range.
 - If you cannot confidently map the request, respond with action "unknown".
 - Output JSON only. No explanation, no markdown fences.
 """

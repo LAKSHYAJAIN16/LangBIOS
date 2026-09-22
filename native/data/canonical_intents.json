@@ -92,6 +92,20 @@
   {"phrase": "show me my boot sequence", "action": "get", "setting": "boot_order", "value": null},
   {"phrase": "which device boots first", "action": "get", "setting": "boot_order", "value": null},
 
+  {"phrase": "what is my volume", "action": "get", "setting": "volume", "value": null},
+  {"phrase": "how loud is it right now", "action": "get", "setting": "volume", "value": null},
+  {"phrase": "check the volume level", "action": "get", "setting": "volume", "value": null},
+
+  {"phrase": "mute the audio", "action": "set", "setting": "mute", "value": "true"},
+  {"phrase": "silence the sound", "action": "set", "setting": "mute", "value": "true"},
+  {"phrase": "turn off the sound completely", "action": "set", "setting": "mute", "value": "true"},
+  {"phrase": "shut it up", "action": "set", "setting": "mute", "value": "true"},
+  {"phrase": "unmute the audio", "action": "set", "setting": "mute", "value": "false"},
+  {"phrase": "turn the sound back on", "action": "set", "setting": "mute", "value": "false"},
+  {"phrase": "bring the audio back", "action": "set", "setting": "mute", "value": "false"},
+  {"phrase": "is the sound muted right now", "action": "get", "setting": "mute", "value": null},
+  {"phrase": "check if audio is silenced", "action": "get", "setting": "mute", "value": null},
+
   {"phrase": "list settings", "action": "list", "setting": null, "value": null},
   {"phrase": "show me all my settings", "action": "list", "setting": null, "value": null},
   {"phrase": "show me everything", "action": "list", "setting": null, "value": null},

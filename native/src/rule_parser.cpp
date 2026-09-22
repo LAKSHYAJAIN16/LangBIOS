@@ -21,6 +21,7 @@ const std::regex kListWords(R"(\b(?:list|show|dump)\b.*\bsettings?\b)");
 const std::regex kResetWords(R"(\breset\b.*\b(?:default|factory)\w*)");
 const std::regex kBootOrderValue(R"((?:to|:)\s*([a-z0-9, ]+)$)");
 const std::regex kBootOrderQuery(R"(\b(?:what's|what is|show)\b)");
+const std::regex kVolumeNumber(R"((\d{1,3}))");
 
 const std::map<std::string, std::vector<std::string>> kAliases = {
     {"secure_boot", {"secure boot", "secureboot"}},
@@ -32,6 +33,8 @@ const std::map<std::string, std::vector<std::string>> kAliases = {
     {"power_profile", {"power profile", "power plan", "power mode"}},
     {"fan_profile", {"fan profile", "fan curve", "fan speed", "fan mode"}},
     {"boot_order", {"boot order", "boot priority", "boot sequence"}},
+    {"volume", {"volume", "audio volume", "sound volume"}},
+    {"mute", {"unmute", "mute", "audio mute", "sound mute"}},
 };
 
 const std::vector<std::string> kBoolSettings = {
@@ -114,6 +117,33 @@ bool ParseRule(const std::string& text, Command& out) {
             return true;
         }
         return false;
+    }
+
+    if (setting == "volume") {
+        std::smatch m;
+        if (std::regex_search(t, m, kVolumeNumber)) {
+            out = Command{Action::Set, setting, m[1].str(), text};
+            return true;
+        }
+        if (std::regex_search(t, kQueryWords)) {
+            out = Command{Action::Get, setting, "", text};
+            return true;
+        }
+        return false;
+    }
+
+    if (setting == "mute") {
+        // "mute"/"unmute" are themselves the on/off verbs here (nobody
+        // says "turn mute on") - kQueryWords is checked first since
+        // "is" would otherwise never fire (both mute/unmute phrases
+        // already matched via FindSetting above).
+        if (std::regex_search(t, kQueryWords)) {
+            out = Command{Action::Get, setting, "", text};
+            return true;
+        }
+        bool wantsUnmute = t.find("unmute") != std::string::npos;
+        out = Command{Action::Set, setting, wantsUnmute ? "false" : "true", text};
+        return true;
     }
 
     return false;

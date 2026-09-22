@@ -17,7 +17,7 @@ $commonSources = @("rule_parser.cpp", "engine.cpp", "llm_fallback.cpp") | ForEac
 # Windows-specific: Win32 firmware APIs + WMI/COM.
 $windowsSources = @(
     "win_strings.cpp", "wmi_session.cpp", "smbios.cpp", "uefi_vars.cpp", "tpm.cpp",
-    "vendor_detect.cpp", "vendor_dell.cpp", "vendor_hp.cpp", "vendor_lenovo.cpp"
+    "vendor_detect.cpp", "vendor_dell.cpp", "vendor_hp.cpp", "vendor_lenovo.cpp", "audio.cpp"
 ) | ForEach-Object { Join-Path $win $_ }
 
 $libs = @("-lwbemuuid", "-lole32", "-loleaut32", "-ladvapi32", "-lkernel32", "-luser32")
@@ -55,6 +55,12 @@ if ((Test-Path $vendorLlamacppBin) -and (Test-Path $vendorModels)) {
     Write-Host "Copying bundled LLM assets into build/ ..."
     $destBin = Join-Path $out "llamacpp\bin"
     $destModels = Join-Path $out "models"
+    # Wipe the destination first: Copy-Item only adds/overwrites, it never
+    # removes files that used to be copied here but aren't in the source
+    # anymore (e.g. switching model/binary sets across rebuilds) - that
+    # silently accumulated 500+MB of stale files across this project's
+    # own architecture changes. Fresh copy every time avoids that.
+    Remove-Item -Recurse -Force $destBin, $destModels -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path $destBin, $destModels | Out-Null
     Copy-Item -Force (Join-Path $vendorLlamacppBin "*") $destBin
     Copy-Item -Force (Join-Path $vendorModels "*.gguf") $destModels

@@ -1,4 +1,5 @@
-"""Shared vocabulary of BIOS/UEFI settings this project understands.
+"""Shared vocabulary of settings this project understands - BIOS/UEFI
+firmware settings plus real OS-level hardware-adjacent settings (audio).
 
 Used by the LLM fallback to describe what it can map requests onto.
 `boot_order`'s `choices` here are illustrative categories only - real
@@ -14,7 +15,7 @@ from dataclasses import dataclass
 @dataclass
 class SettingSpec:
     name: str
-    type: str  # "bool" | "enum" | "list"
+    type: str  # "bool" | "enum" | "list" | "int"
     description: str
     choices: list[str] | None = None
 
@@ -38,4 +39,6 @@ SETTINGS: dict[str, SettingSpec] = {
         "boot_order", "list", "Device boot priority order",
         choices=["ssd", "hdd", "usb", "network", "cdrom"],
     ),
+    "volume": SettingSpec("volume", "int", "System audio output volume, 0-100"),
+    "mute": SettingSpec("mute", "bool", "System audio mute state"),
 }

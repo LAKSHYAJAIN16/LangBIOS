@@ -1,3 +1,4 @@
+#include "langbios/audio.hpp"
 #include "langbios/engine.hpp"
 #include "langbios/llm_fallback.hpp"
 #include "langbios/tpm.hpp"
@@ -29,15 +30,18 @@ std::vector<std::string> SplitCsv(const std::string& s) {
     return parts;
 }
 
-// Real UEFI/vendor settings that don't go through the vendor attribute table.
+// Settings with their own real backend (firmware or OS-level) that
+// don't go through the vendor BIOS attribute table.
 bool IsCoreSetting(const std::string& s) {
-    return s == "secure_boot" || s == "tpm" || s == "boot_order";
+    return s == "secure_boot" || s == "tpm" || s == "boot_order" || s == "volume" || s == "mute";
 }
 
 Result GetCoreSetting(const std::string& s) {
     if (s == "secure_boot") return GetSecureBootState();
     if (s == "tpm") return GetTpmState();
     if (s == "boot_order") return GetBootOrder();
+    if (s == "volume") return GetVolume();
+    if (s == "mute") return GetMute();
     return Result::Failure("unreachable");
 }
 
@@ -86,6 +90,8 @@ Result ListAll() {
     ss << GetSecureBootState().message << "\n";
     ss << GetTpmState().message << "\n";
     ss << GetBootOrder().message << "\n";
+    ss << GetVolume().message << "\n";
+    ss << GetMute().message << "\n";
 
     Vendor v = DetectVendor();
     auto backend = CreateVendorBackend(v);
@@ -131,6 +137,16 @@ Result Execute(const Command& cmd) {
             }
             if (cmd.setting == "boot_order") {
                 return SetBootOrderByDescriptions(SplitCsv(cmd.value));
+            }
+            if (cmd.setting == "volume") {
+                try {
+                    return SetVolume(std::stoi(cmd.value));
+                } catch (...) {
+                    return Result::Failure("volume needs a number 0-100, got '" + cmd.value + "'.");
+                }
+            }
+            if (cmd.setting == "mute") {
+                return SetMute(cmd.value == "true");
             }
             return SetVendorSetting(cmd.setting, cmd.value);
         }
