@@ -37,4 +37,32 @@ echo "Building langbios_cli ..."
 "$CXX" -std=c++20 -I "$INC" -o "$OUT/langbios_cli" \
     "${COMMON_SOURCES[@]}" "${MACOS_SOURCES[@]}" "$SRC/cli.cpp"
 
+# Bundled local NL-understanding assets (fetched separately via
+# fetch-llm.sh, since the binaries/model are too large to commit) get
+# copied alongside the built binary so llm_fallback can find them at
+# ./llamacpp, ./models, and ./data relative to itself. Destination is
+# wiped first: a stale set of binaries/model left over from switching
+# versions has silently accumulated hundreds of MB of dead weight here
+# before (see build.ps1's own history) - a fresh copy every time avoids
+# that regardless of platform.
+VENDOR_BIN="$ROOT/vendor/llamacpp/bin"
+VENDOR_MODELS="$ROOT/vendor/models"
+if [ -d "$VENDOR_BIN" ] && [ -d "$VENDOR_MODELS" ]; then
+    echo "Copying bundled LLM assets into build/ ..."
+    DEST_BIN="$OUT/llamacpp/bin"
+    DEST_MODELS="$OUT/models"
+    rm -rf "$DEST_BIN" "$DEST_MODELS"
+    mkdir -p "$DEST_BIN" "$DEST_MODELS"
+    cp -a "$VENDOR_BIN/." "$DEST_BIN/"
+    cp -a "$VENDOR_MODELS"/*.gguf "$DEST_MODELS/"
+else
+    echo "No bundled LLM assets found (run native/fetch-llm.sh to get them) - CLI will run rule-parser-only."
+fi
+
+CANONICAL_EMBEDDINGS="$ROOT/data/canonical_embeddings.bin"
+if [ -f "$CANONICAL_EMBEDDINGS" ]; then
+    mkdir -p "$OUT/data"
+    cp -f "$CANONICAL_EMBEDDINGS" "$OUT/data/"
+fi
+
 echo "Build succeeded -> $OUT"

@@ -103,18 +103,20 @@ Produces `native/build/langbios_native.dll` and `native/build/langbios_cli.exe`.
 Requires g++ or clang++ with C++20 support.
 
 ```bash
+./native/fetch-llm.sh   # bundled local NL fallback, optional but recommended
 ./native/build.sh
 ```
 
 Produces `native/build/langbios_native.so` and `native/build/langbios_cli`.
 
-> **Honesty note:** the Linux backend (`native/src/linux/`) was written against the documented kernel ABIs (`efivarfs`, `/sys/class/firmware-attributes`, `/sys/class/tpm`) but developed and tested only on Windows, with no Linux hardware in this environment to verify it against real firmware. The Windows backend *has* been verified end-to-end against real hardware (see below). Please test the Linux write path carefully before trusting it, ideally starting with read-only commands.
+> **Honesty note:** the Linux backend (`native/src/linux/`) was written against the documented kernel ABIs (`efivarfs`, `/sys/class/firmware-attributes`, `/sys/class/tpm`) but developed and tested only on Windows, with no Linux hardware in this environment to verify it against real firmware. The Windows backend *has* been verified end-to-end against real hardware (see below). Please test the Linux write path carefully before trusting it, ideally starting with read-only commands. `fetch-llm.sh`'s bundled-file list is similarly inferred rather than traced with `ldd` (see its header comment) - worth double-checking if you have real Linux hardware.
 
 ### macOS
 
 Requires Xcode Command Line Tools (`clang++`).
 
 ```bash
+./native/fetch-llm.sh   # bundled local NL fallback, optional but recommended
 ./native/build-macos.sh
 ```
 
