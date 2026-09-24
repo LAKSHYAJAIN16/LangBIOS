@@ -12,7 +12,7 @@ from __future__ import annotations
 from .commands import Command, Result
 from . import llm_parser, native_backend
 
-_NOT_UNDERSTOOD_MARKER = "I didn't understand that"
+_NOT_UNDERSTOOD_MARKER = "(no LLM response)"
 
 
 def _command_to_phrase(cmd: Command) -> str:
