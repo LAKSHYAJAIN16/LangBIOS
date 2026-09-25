@@ -3,9 +3,8 @@
 // desktops), targeting the default sink. Same shell-out style as this
 // project's other Linux backends.
 //
-// NOTE: written against documented pactl behavior but not run on real
-// Linux hardware in this environment (Windows-only development
-// machine) - please verify before trusting the write path.
+// Verified on Linux against a real PulseAudio server (null sink): get/set
+// volume (including clamping), mute/unmute and reading mute state.
 #include "langbios/audio.hpp"
 #include <array>
 #include <cstdio>
@@ -22,6 +21,7 @@ std::string RunCommand(const std::string& cmd) {
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen((cmd + " 2>&1").c_str(), "r"), pclose);
     if (!pipe) return "";
     while (fgets(buf.data(), buf.size(), pipe.get()) != nullptr) result += buf.data();
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
     return result;
 }
 

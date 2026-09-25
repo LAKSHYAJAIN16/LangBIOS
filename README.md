@@ -109,7 +109,7 @@ Requires g++ or clang++ with C++20 support.
 
 Produces `native/build/langbios_native.so` and `native/build/langbios_cli`.
 
-> **Honesty note:** the Linux backend (`native/src/linux/`) was written against the documented kernel ABIs (`efivarfs`, `/sys/class/firmware-attributes`, `/sys/class/tpm`) but developed and tested only on Windows, with no Linux hardware in this environment to verify it against real firmware. The Windows backend *has* been verified end-to-end against real hardware (see below). Please test the Linux write path carefully before trusting it, ideally starting with read-only commands. `fetch-llm.sh`'s bundled-file list is similarly inferred rather than traced with `ldd` (see its header comment) - worth double-checking if you have real Linux hardware.
+> **Honesty note:** the Linux backend (`native/src/linux/`) was written against the documented kernel ABIs (`efivarfs`, `/sys/class/firmware-attributes`, `/sys/class/tpm`). It has been built on Linux (g++ 13, clang++) and run there: `volume`/`mute` were verified end-to-end against a real PulseAudio server, the Python `ctypes` bridge loads the `.so` correctly, and the firmware paths correctly report "not available" when there's no `efivarfs`/TPM/vendor driver. What has **not** been verified is the firmware paths against real UEFI hardware on Linux - the Windows backend *has* been (see below). Please test the Linux firmware write path carefully before trusting it, ideally starting with read-only commands. `fetch-llm.sh`'s bundled-file list is similarly inferred rather than traced with `ldd` (see its header comment) - worth double-checking if you have real Linux hardware.
 
 ### macOS
 
