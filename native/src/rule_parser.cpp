@@ -17,6 +17,12 @@ std::string ToLower(std::string s) {
 const std::regex kOnWords(R"(\b(?:turn on|enable|enabled|activate|on)\b)");
 const std::regex kOffWords(R"(\b(?:turn off|disable|disabled|deactivate|off)\b)");
 const std::regex kQueryWords(R"(\b(?:what's|what is|check|status of|is)\b)");
+// A sentence *opening* as a question is a read even when it contains an
+// on/off word or a value ("is tpm enabled", "is my fan profile silent") -
+// checking kOnWords first used to turn those into writes. Anchored at the
+// start so "can you enable secure boot?" still stays a write.
+const std::regex kQuestionStart(
+    R"(^\s*(?:is|are|was|does|do i have|what's|whats|what is|what|check|status of|tell me)\b)");
 const std::regex kListWords(R"(\b(?:list|show|dump)\b.*\bsettings?\b)");
 const std::regex kResetWords(R"(\breset\b.*\b(?:default|factory)\w*)");
 const std::regex kBootOrderValue(R"((?:to|:)\s*([a-z0-9, ]+)$)");
@@ -79,6 +85,11 @@ bool ParseRule(const std::string& text, Command& out) {
 
     std::string setting = FindSetting(t);
     if (setting.empty()) return false;
+
+    if (std::regex_search(t, kQuestionStart)) {
+        out = Command{Action::Get, setting, "", text};
+        return true;
+    }
 
     if (Contains(kBoolSettings, setting)) {
         if (std::regex_search(t, kOnWords)) {
